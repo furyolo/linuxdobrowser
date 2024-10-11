@@ -13,9 +13,8 @@ LinuxDoBrowser 是一个自动化浏览 linux.do 论坛的 Python 工具。
 
 本项目使用 Poetry 进行依赖管理。请确保您已安装 Poetry,然后按照以下步骤进行安装:
 
-1. 克隆仓库:
+1. 进入项目目录:
    ```bash
-   git clone https://github.com/yourusername/linuxdobrowser.git
    cd linuxdobrowser
    ```
 
