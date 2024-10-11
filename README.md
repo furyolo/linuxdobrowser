@@ -15,8 +15,8 @@ LinuxDoBrowser 是一个自动化浏览 linux.do 论坛的 Python 工具。
 
 1. 克隆仓库:
    ```bash
-   git clone https://github.com/yourusername/LinuxDoBrowser.git
-   cd LinuxDoBrowser
+   git clone https://github.com/yourusername/linuxdobrowser.git
+   cd linuxdobrowser
    ```
 
 2. 安装依赖:
