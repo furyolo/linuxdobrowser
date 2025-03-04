@@ -53,7 +53,7 @@ async def human_like_scroll(tab: Chromium):
 
 async def process_topic(topic: Chromium, n: int, semaphore: asyncio.Semaphore):
     async with semaphore:
-        num_posts = topic('t=button').text
+        num_posts = topic('.badge-posts').text
         if 'k' in num_posts.lower() or int(num_posts) >= 1:
             topic_ele = topic('.link-top-line')('.title raw-link raw-topic-link')
             title = topic_ele.text
