@@ -23,7 +23,7 @@ async def browse_with_browser(browser_choice, mode, browser_paths, browser_ports
     else:
         while True:
             topic_list = topic_list_body.eles('t=tr') 
-            end_topic_id = topic_list[-1].attr('id')
+            end_topic_id = topic_list[-1].attr('data-topic-id')
             if len(topic_list) > 50:
                 break
             try:

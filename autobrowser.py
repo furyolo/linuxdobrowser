@@ -10,16 +10,12 @@ logging.basicConfig(
 logger = logging.getLogger(__name__)
 
 def wait_for_new_topics(tab: Chromium, end_topic_id: str):
-    # 从end_topic_id中提取数字
-    current_number = int(re.search(r'ember(\d+)', end_topic_id).group(1))
-    next_id = f'ember{current_number + 20}'
+    # end_topic_id转为数字
+    current_number = int(end_topic_id)
     
     # 滚动到页面底部
-    tab.actions.scroll(on_ele=f'#{end_topic_id}')
+    tab.actions.scroll(on_ele=f'@data-topic-id={current_number}')
     
-    # 等待新元素加载
-    tab.wait.eles_loaded(f'#{next_id}', timeout=10)
-
 def is_bottom_of_page(tab: Chromium):
     # 获取当前滚动位置
     current_scroll = tab.run_js('return window.pageYOffset')
@@ -29,7 +25,7 @@ def is_bottom_of_page(tab: Chromium):
     viewport_height = tab.run_js('return window.innerHeight')
     
     # 如果当前滚动位置加上视窗高度等于或接近页面总高度，则认为到达底部
-    return (current_scroll + viewport_height) >= (total_height - 200)  # 允许200像素的误差
+    return (current_scroll + viewport_height) >= (total_height - 100)  # 允许100像素的误差
 
 async def human_like_scroll(tab: Chromium):
     while not is_bottom_of_page(tab):
@@ -62,7 +58,7 @@ async def process_topic(topic: Chromium, n: int, semaphore: asyncio.Semaphore):
             start_time = time.time()
             # 在新标签页打开链接
             new_tab = topic_ele.ele('@dir=auto').click.middle()
-            new_tab.wait.eles_loaded('.topic-post clearfix regular')
+            new_tab.wait.eles_loaded('.topic-post clearfix regular', timeout=15)
             await human_like_scroll(new_tab)
             new_tab.close()
             # 计算经过的时间
