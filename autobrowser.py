@@ -28,24 +28,23 @@ def is_bottom_of_page(tab: Chromium):
     return (current_scroll + viewport_height) >= (total_height - 100)  # 允许100像素的误差
 
 async def human_like_scroll(tab: Chromium):
-    while not is_bottom_of_page(tab):
-        # 随机滚动距离，范围可以根据实际情况调整
-        scroll_distance = random.randint(200, 500)
+    # 随机滚动距离，范围可以根据实际情况调整
+    scroll_distance = random.randint(200, 500)
         
-        # 有 3% 的概率向上滚动一小段距离
-        if random.random() < 0.03:
-            tab.actions.scroll(-random.randint(50, 100))
-            await asyncio.sleep(random.uniform(0.5, 1))
+    # 有 3% 的概率向上滚动一小段距离
+    if random.random() < 0.03:
+        tab.actions.scroll(-random.randint(50, 100))
+        await asyncio.sleep(random.uniform(0.5, 1))
         
-        tab.actions.scroll(scroll_distance)
+    tab.actions.scroll(scroll_distance)
         
-        # 模拟阅读时间，根据滚动距离调整
-        read_time = scroll_distance / 100 * random.uniform(0.2, 0.5)
-        await asyncio.sleep(read_time)
+    # 模拟阅读时间，根据滚动距离调整
+    read_time = scroll_distance / 100 * random.uniform(0.2, 0.5)
+    await asyncio.sleep(read_time)
         
-        # 有 3% 的概率停顿较长时间，模拟仔细阅读
-        if random.random() < 0.03:
-            await asyncio.sleep(random.uniform(2, 5))
+    # 有 3% 的概率停顿较长时间，模拟仔细阅读
+    if random.random() < 0.03:
+        await asyncio.sleep(random.uniform(2, 5))
 
 async def process_topic(topic: Chromium, n: int, semaphore: asyncio.Semaphore):
     async with semaphore:
@@ -54,15 +53,35 @@ async def process_topic(topic: Chromium, n: int, semaphore: asyncio.Semaphore):
             topic_ele = topic('.link-top-line')('.title raw-link raw-topic-link')
             title = topic_ele.text
             logger.info(f'开始阅读第{n+1}个主题: {title}')
-            # 记录开始时间
+            
             start_time = time.time()
-            # 在新标签页打开链接
-            new_tab = topic_ele.ele('@dir=auto').click.middle()
-            new_tab.wait.eles_loaded('.topic-post clearfix regular', timeout=15)
-            await human_like_scroll(new_tab)
-            new_tab.close()
-            # 计算经过的时间
-            elapsed_time = time.time() - start_time
-            logger.info(f'第{n+1}个主题阅读完毕, 耗时 {elapsed_time:.0f} 秒')
+            # 获取链接元素，用于重复打开
+            link_ele = topic_ele.ele('@dir=auto')
+            reached_bottom = False
+            
+            while not reached_bottom:
+                # 在新标签页打开链接
+                new_tab = link_ele.click.middle()
+                new_tab.wait.eles_loaded('.topic-post clearfix regular', timeout=20)
+                
+                # 记录滚动开始时间
+                scroll_start_time = time.time()
+                
+                # 执行滚动，但最多持续20秒
+                while time.time() - scroll_start_time < 20 and not is_bottom_of_page(new_tab):
+                    await human_like_scroll(new_tab)
+                
+                # 检查是否到达底部
+                reached_bottom = is_bottom_of_page(new_tab)
+                
+                # 关闭当前标签页
+                new_tab.close()
+                
+                if not reached_bottom:
+                    logger.info(f'第{n+1}个主题未读完，将重新打开继续阅读')
+                    # 短暂等待后继续
+                    await asyncio.sleep(3)
+            
+            logger.info(f'第{n+1}个主题阅读完毕, 耗时 {time.time() - start_time:.0f} 秒')
         else:
             logger.info('跟帖数量小于1, 跳过阅读')
