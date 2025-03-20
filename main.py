@@ -50,14 +50,14 @@ async def main():
     browser_paths = {
         'chrome': r'C:\Program Files\Google\Chrome\Application\chrome.exe',
         'edge': r'C:\Program Files (x86)\Microsoft\Edge\Application\msedge.exe', 
-        'doubao': r'C:\Users\Andy\AppData\Local\Doubao\Application\app\Doubao.exe', 
         '115': r'C:\Users\Andy\AppData\Local\115Chrome\Application\115chrome.exe',
+        'doubao': r'C:\Users\Andy\AppData\Local\Doubao\Application\app\Doubao.exe', 
     }
     browser_ports = {
         'chrome': 11223,
         'edge': 11224,
-        'doubao': 11225,
-        '115': 11226
+        '115': 11225,
+        'doubao': 11226,
     }
     
     if args.browser == 'single':

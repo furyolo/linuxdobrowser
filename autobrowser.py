@@ -57,31 +57,21 @@ async def process_topic(topic: Chromium, n: int, semaphore: asyncio.Semaphore):
             start_time = time.time()
             # 获取链接元素，用于重复打开
             link_ele = topic_ele.ele('@dir=auto')
-            reached_bottom = False
             
-            while not reached_bottom:
-                # 在新标签页打开链接
-                new_tab = link_ele.click.middle()
-                new_tab.wait.eles_loaded('.topic-post clearfix regular', timeout=20)
+            # 在新标签页打开链接
+            new_tab = link_ele.click.middle()
+            new_tab.wait.eles_loaded('.topic-post clearfix regular', timeout=30)
                 
-                # 记录滚动开始时间
-                scroll_start_time = time.time()
+            # 记录滚动开始时间
+            scroll_start_time = time.time()
                 
-                # 执行滚动，但最多持续20秒
-                while time.time() - scroll_start_time < 20 and not is_bottom_of_page(new_tab):
-                    await human_like_scroll(new_tab)
+            # 执行滚动，但最多持续60秒
+            while time.time() - scroll_start_time < 60 and not is_bottom_of_page(new_tab):
+                await human_like_scroll(new_tab)
                 
-                # 检查是否到达底部
-                reached_bottom = is_bottom_of_page(new_tab)
+            # 关闭当前标签页
+            new_tab.close()
                 
-                # 关闭当前标签页
-                new_tab.close()
-                
-                if not reached_bottom:
-                    logger.info(f'第{n+1}个主题未读完，将重新打开继续阅读')
-                    # 短暂等待后继续
-                    await asyncio.sleep(3)
-            
             logger.info(f'第{n+1}个主题阅读完毕, 耗时 {time.time() - start_time:.0f} 秒')
         else:
             logger.info('跟帖数量小于1, 跳过阅读')
