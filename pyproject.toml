@@ -1,16 +1,13 @@
-[tool.poetry]
+[project]
 name = "linuxdobrowser"
 version = "0.1.0"
-description = ""
-authors = ["Andy"]
+description = "LinuxDoBrowser is a Python tool for automating web browsing on the linux.do forum"
 readme = "README.md"
-package-mode = false
+requires-python = ">=3.12"
+dependencies = [
+    "drissionpage>=4.1.0.18",
+]
 
-[tool.poetry.dependencies]
-python = "^3.12"
-DrissionPage = "^4.1.0.2"
-
-
-[build-system]
-requires = ["poetry-core"]
-build-backend = "poetry.core.masonry.api"
+[[tool.uv.index]]
+url = "https://mirrors.tuna.tsinghua.edu.cn/pypi/web/simple"
+default = true
