@@ -11,7 +11,7 @@ LinuxDoBrowser 是一个自动化浏览 linux.do 论坛的 Python 工具。
 
 ## 安装
 
-本项目使用 Poetry 进行依赖管理。请确保您已安装 Poetry,然后按照以下步骤进行安装:
+本项目使用 uv 进行依赖管理。请确保您已安装 uv,然后按照以下步骤进行安装:
 
 1. 进入项目目录:
    ```bash
@@ -20,14 +20,14 @@ LinuxDoBrowser 是一个自动化浏览 linux.do 论坛的 Python 工具。
 
 2. 安装依赖:
    ```bash
-   poetry install
+   uv sync
    ```
 
 ## 使用方法
 
 1. 运行主程序:
    ```bash
-   poetry run python main.py
+   uv run main.py
    ```
 
 2. 根据提示选择要使用的浏览器或浏览模式。
@@ -38,7 +38,7 @@ LinuxDoBrowser 是一个自动化浏览 linux.do 论坛的 Python 工具。
 
 如果您希望使用系统用户配置文件运行浏览器,可以执行以下命令:
 ```bash
-poetry run python use_system_user.py
+uv run use_system_user.py
 ```
 
 ## 依赖
