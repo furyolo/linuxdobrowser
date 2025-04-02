@@ -138,3 +138,6 @@ example.db
 
 # poetry
 poetry.lock
+
+# cursor
+.cursor/

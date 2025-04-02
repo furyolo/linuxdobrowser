@@ -558,34 +558,11 @@ async function sendBatch(startId, endId, retryCount = 3) {
     }
 }
 
-// 获取当前页面位置
-function getCurrentPosition() {
-    const pathParts = window.location.pathname.split('/').filter(part => part);  // 过滤空字符串
-    const topicIndex = pathParts.indexOf('topic');
-    
-    // 检查/topic/后面是否有两部分，且第二部分是数字
-    if (pathParts.length > topicIndex + 2) {
-        const position = parseInt(pathParts[topicIndex + 2]);
-        if (!isNaN(position)) {
-            return position;
-        }
-    }
-    
-    // 如果没有第二部分或第二部分不是数字，返回1
-    return 1;
-}
-
 // 开始阅读跟帖
 async function startReading() {
-    const startPosition = getCurrentPosition();
-    if (startPosition < 1 || startPosition > totalReplies) {
-        showStatus("无效的起始位置", "error");
-        return;
-    }
+    showStatus(`从第 ${currentPosition} 帖开始阅读...`, "success");
 
-    showStatus(`从第 ${startPosition} 帖开始阅读...`, "success");
-
-    for (let i = startPosition; i <= totalReplies;) {
+    for (let i = currentPosition; i <= totalReplies;) {
         const batchSize = getRandomInt(config.minReqSize, config.maxReqSize);
         const startId = i;
         const endId = Math.min(i + batchSize - 1, totalReplies);
