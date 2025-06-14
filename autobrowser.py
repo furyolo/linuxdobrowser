@@ -60,7 +60,7 @@ async def process_topic(topic: Chromium, n: int, semaphore: asyncio.Semaphore):
             
             # 在新标签页打开链接
             new_tab = link_ele.click.middle()
-            new_tab.wait.eles_loaded('.topic-post clearfix regular', timeout=30)
+            new_tab.wait.eles_loaded('.topic-body clearfix', timeout=15)
                 
             # 记录滚动开始时间
             scroll_start_time = time.time()
@@ -68,7 +68,9 @@ async def process_topic(topic: Chromium, n: int, semaphore: asyncio.Semaphore):
             # 执行滚动，但最多持续60秒
             while time.time() - scroll_start_time < 60 and not is_bottom_of_page(new_tab):
                 await human_like_scroll(new_tab)
-                
+
+            # # 等待10秒
+            # await asyncio.sleep(15)   
             # 关闭当前标签页
             new_tab.close()
                 

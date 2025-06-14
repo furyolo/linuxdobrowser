@@ -48,7 +48,7 @@ async def main():
     args = parser.parse_args()
 
     browser_paths = {
-        'chrome': r'C:\Program Files\Google\Chrome\Application\chrome.exe',
+        # 'chrome': r'C:\Program Files\Google\Chrome\Application\chrome.exe',
         'edge': r'C:\Program Files (x86)\Microsoft\Edge\Application\msedge.exe', 
         '115': r'C:\Users\Andy\AppData\Local\115Chrome\Application\115chrome.exe',
         'doubao': r'C:\Users\Andy\AppData\Local\Doubao\Application\app\Doubao.exe', 
