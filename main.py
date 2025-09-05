@@ -1,5 +1,6 @@
 import asyncio
 import argparse
+import time
 from typing import Dict, List, Optional, Any, Coroutine
 from DrissionPage import Chromium, ChromiumOptions
 from autobrowser import wait_for_new_topics, process_topic
@@ -21,22 +22,35 @@ async def browse_with_browser(browser_choice: str, mode: str, browser_paths: Dic
     topic_list_body = tab('.topic-list-body')
     
     topic_list: List[Any] = []
-    if mode == 'short':
-        elements = topic_list_body.eles('t=tr')
-        topic_list = list(elements)[:num_topics] if hasattr(elements, '__iter__') else []
-    else:
+    if mode == 'short' or mode == 'long':
+        # 循环加载主题，直到满足条件或没有更多主题
         while True:
+            # 获取当前已加载的主题元素
             elements = topic_list_body.eles('t=tr')
-            topic_list = list(elements) if hasattr(elements, '__iter__') else []
-            end_topic_id: str = topic_list[-1].attr('data-topic-id')
-            if len(topic_list) > 50:
+            current_count = len(elements)
+            
+            # 如果是 short 模式且已加载足够数量的主题，则停止
+            if mode == 'short' and current_count >= num_topics:
+                topic_list = list(elements)[:num_topics]
                 break
-            try:
-                wait_for_new_topics(tab, end_topic_id)
-            except TimeoutError:
+                
+            # 滚动到底部以加载更多主题
+            tab.scroll.to_bottom()
+            
+            # 等待一段时间并轮询，检查是否有新主题加载
+            start_wait_time = time.time()
+            while time.time() - start_wait_time < 5: # 最多等待5秒
+                await asyncio.sleep(0.5) # 每0.5秒检查一次
+                elements = topic_list_body.eles('t=tr')
+                if len(elements) > current_count:
+                    # 有新主题加载，跳出内层等待循环
+                    break
+            else:
+                # 等待超时，没有新主题加载，认为已加载完毕
+                topic_list = list(elements)
                 print('没有更多主题加载，结束程序')
                 break
-
+                
     semaphore: asyncio.Semaphore = asyncio.Semaphore(3)
     tasks: List[Coroutine[Any, Any, None]] = [process_topic(topic, n, semaphore) for n, topic in enumerate(topic_list)]
     await asyncio.gather(*tasks)
