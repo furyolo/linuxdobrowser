@@ -141,3 +141,5 @@ poetry.lock
 
 # cursor
 .cursor/
+
+.claude/

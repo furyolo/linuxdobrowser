@@ -1,11 +1,12 @@
 // ==UserScript==
-// @name        LINUXDO Reader
-// @namespace   linux.do_FlowReader
+// @name        Multi-Forum Reader
+// @namespace   multi_forum_FlowReader
 // @match       https://linux.do/t/topic/*
+// @match       https://idcflare.com/t/topic/*
 // @icon        https://linux.do/favicon.ico
 // @grant       GM_setValue
 // @grant       GM_getValue
-// @version     2.2.2
+// @version     2.3.0
 // @author      Neuroplexus & Andy
 // ==/UserScript==
 
@@ -239,6 +240,8 @@ const DEFAULT_CONFIG = {
 
 // 全局变量
 let config = { ...DEFAULT_CONFIG, ...getStoredConfig() };
+const currentDomain = window.location.hostname;
+const currentProtocol = window.location.protocol;
 const topicID = window.location.pathname.split("/")[3];
 const repliesInfo = document.querySelector("div[class=timeline-replies]").textContent.trim();
 const [currentPosition, totalReplies] = repliesInfo.split("/").map(part => parseInt(part.trim(), 10));
@@ -385,7 +388,7 @@ function showSettings() {
     `;
 
     showDialog({
-        title: "FlowReader 设置",
+        title: `FlowReader 设置 (${currentDomain})`,
         content: settingsContent,
         buttons: [
             {
@@ -516,7 +519,7 @@ function createBatchParams(startId, endId) {
 async function sendBatch(startId, endId, retryCount = 3) {
     const params = createBatchParams(startId, endId);
     try {
-        const response = await fetch("https://linux.do/topics/timings", {
+        const response = await fetch(`${currentProtocol}//${currentDomain}/topics/timings`, {
             headers: {
                 "accept": "*/*",
                 "content-type": "application/x-www-form-urlencoded; charset=UTF-8",
@@ -531,7 +534,7 @@ async function sendBatch(startId, endId, retryCount = 3) {
                 "x-requested-with": "XMLHttpRequest",
                 "x-silence-logger": "true"
             },
-            referrer: `https://linux.do/`,
+            referrer: `${currentProtocol}//${currentDomain}/`,
             body: params.toString(),
             method: "POST",
             mode: "cors",
