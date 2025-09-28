@@ -111,6 +111,10 @@ ENV/
 env.bak/
 venv.bak/
 
+# uv package manager
+.uv-cache/
+uv.lock
+
 # Spyder project settings
 .spyderproject
 .spyproject
