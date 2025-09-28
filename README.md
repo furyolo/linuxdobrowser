@@ -43,7 +43,7 @@ uv run use_system_user.py
 
 ## 依赖
 
-- Python 3.12+
+- Python 3.13+
 - DrissionPage 4.1.0.2+
 
 ## 命令行参数
