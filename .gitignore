@@ -140,6 +140,9 @@ example.db
 # 会话文件
 *.session
 
+# serena文件
+.serena/
+
 # poetry
 poetry.lock
 
