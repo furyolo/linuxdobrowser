@@ -1,9 +1,9 @@
 // ==UserScript==
 // @name         Linux.do 智能总结
 // @namespace    http://tampermonkey.net/
-// @version      5.2
+// @version      5.3
 // @description  Linux.do 帖子总结
-// @author       半杯无糖、WolfHolo
+// @author       半杯无糖、WolfHolo、Andy
 // @match        https://linux.do/*
 // @icon         https://linux.do/uploads/default/optimized/1X/3a18b4b0da3e8cf96f7eea15241c3d251f28a39b_2_180x180.png
 // @require      https://cdn.jsdelivr.net/npm/marked/marked.min.js
@@ -265,9 +265,9 @@
         .icon-btn[data-tooltip]::after {
             content: attr(data-tooltip);
             position: absolute;
-            bottom: -32px;
-            left: 50%;
-            transform: translateX(-50%) scale(0.9);
+            top: 50%;
+            right: calc(100% + 10px);
+            transform: translateY(-50%) scale(0.9);
             background: var(--text-main);
             color: var(--text-inverse);
             padding: 5px 10px;
@@ -278,11 +278,19 @@
             opacity: 0;
             pointer-events: none;
             transition: all var(--transition-fast);
-            z-index: 100;
+            z-index: 10000;
         }
         .icon-btn[data-tooltip]:hover::after {
             opacity: 1;
-            transform: translateX(-50%) scale(1);
+            transform: translateY(-50%) scale(1);
+        }
+
+        /* 聚焦模式下tooltip同样显示在左侧 */
+        :host(.summary-focus-mode.show-top-ui) .header .icon-btn[data-tooltip]::after {
+            top: 50%;
+            right: calc(100% + 10px);
+            bottom: auto;
+            left: auto;
         }
 
         .tab-bar {
@@ -510,15 +518,19 @@
         }
 
         .result-actions {
-            position: absolute;
+            position: sticky;
             top: 12px;
             right: 12px;
             display: flex;
             gap: 6px;
             opacity: 0;
             transition: opacity var(--transition-fast);
+            margin-left: auto;
+            width: fit-content;
+            z-index: 10;
+            float: right;
         }
-        .result-box:hover .result-actions {
+        .result-actions:hover {
             opacity: 1;
         }
         .result-action-btn {
@@ -1332,6 +1344,123 @@
         }
         .hidden { display: none !important; }
 
+        /* 聚焦模式样式 - 总结页面沉浸式阅读 */
+        :host(.summary-focus-mode) .header {
+            max-height: 0;
+            opacity: 0;
+            overflow: hidden;
+            margin: 0;
+            padding: 0;
+            border: none;
+            transition: all var(--transition-normal);
+            pointer-events: none;
+        }
+
+        :host(.summary-focus-mode) .tab-bar {
+            max-height: 0;
+            opacity: 0;
+            overflow: hidden;
+            margin: 0;
+            padding: 0;
+            border: none;
+            transition: all var(--transition-normal);
+            pointer-events: none;
+        }
+
+        /* 当鼠标在顶部时显示header和tab */
+        :host(.summary-focus-mode.show-top-ui) .header {
+            max-height: 100px;
+            opacity: 1;
+            padding: 20px 24px;
+            border-bottom: 1px solid var(--border-light);
+            pointer-events: auto;
+        }
+
+        :host(.summary-focus-mode.show-top-ui) .tab-bar {
+            max-height: 80px;
+            opacity: 1;
+            padding: 12px 16px;
+            border-bottom: 1px solid var(--border-light);
+            pointer-events: auto;
+        }
+
+        :host(.summary-focus-mode) #page-summary .form-group {
+            max-height: 0;
+            opacity: 0;
+            overflow: hidden;
+            margin: 0;
+            padding: 0;
+            transition: all var(--transition-normal);
+            pointer-events: none;
+        }
+
+        :host(.summary-focus-mode) #page-summary #btn-summary {
+            max-height: 0;
+            opacity: 0;
+            overflow: hidden;
+            margin: 0;
+            padding: 0;
+            transition: all var(--transition-normal);
+            pointer-events: none;
+        }
+
+        :host(.summary-focus-mode) #page-summary .shortcut-hint {
+            max-height: 0;
+            opacity: 0;
+            overflow: hidden;
+            margin: 0;
+            padding: 0;
+            transition: all var(--transition-normal);
+            pointer-events: none;
+        }
+
+        /* 当鼠标在顶部时显示控制区域 */
+        :host(.summary-focus-mode.show-top-ui) #page-summary .form-group {
+            max-height: 300px;
+            opacity: 1;
+            margin-bottom: 24px;
+            pointer-events: auto;
+        }
+
+        :host(.summary-focus-mode.show-top-ui) #page-summary #btn-summary {
+            max-height: 100px;
+            opacity: 1;
+            padding: 16px 24px;
+            pointer-events: auto;
+        }
+
+        :host(.summary-focus-mode.show-top-ui) #page-summary .shortcut-hint {
+            max-height: 50px;
+            opacity: 1;
+            pointer-events: auto;
+        }
+
+        :host(.summary-focus-mode) #page-summary {
+            padding-top: 24px;
+            height: 100%;
+            display: flex;
+            flex-direction: column;
+        }
+
+        :host(.summary-focus-mode) #page-summary #summary-result {
+            margin-top: 0;
+            flex: 1;
+            min-height: 0;
+            max-height: none;
+        }
+
+        /* 聚焦模式下content-area也要填充 */
+        :host(.summary-focus-mode) .content-area {
+            display: flex;
+            flex-direction: column;
+        }
+
+        :host(.summary-focus-mode) #page-summary.active {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+        }
+
         .content-area::-webkit-scrollbar {
             width: 6px;
         }
@@ -1725,7 +1854,7 @@
             this.shadow = this.host.attachShadow({ mode: 'open' });
 
             this.isOpen = false;
-            this.btnPos = GM_getValue('btnPos', { side: 'right', top: '50%' });
+            this.btnPos = GM_getValue('btnPos', { side: 'right', top: '66.67%' });
             this.side = this.btnPos.side;
             this.sidebarWidth = GM_getValue('sidebarWidth', 420);
             this.isDarkTheme = GM_getValue('isDarkTheme', false);
@@ -1778,6 +1907,7 @@
                             智能总结
                         </div>
                         <div class="header-actions">
+                            <button class="icon-btn" id="btn-focus" data-tooltip="聚焦模式">🎯</button>
                             <button class="icon-btn" id="btn-theme" data-tooltip="切换主题">🌙</button>
                             <button class="icon-btn" id="btn-close" data-tooltip="关闭">✕</button>
                         </div>
@@ -2094,6 +2224,7 @@
             });
 
             this.Q('#btn-close').onclick = () => this.toggleSidebar();
+            this.Q('#btn-focus').onclick = () => this.toggleFocusMode();
             this.Q('#btn-theme').onclick = () => this.toggleTheme();
 
             this.shadow.querySelectorAll('.tab-item').forEach(tab => {
@@ -2202,6 +2333,37 @@
                     this.toggleSidebar();
                 }
             });
+
+            // 聚焦模式鼠标位置监听
+            const sidebar = this.Q('#sidebar');
+            sidebar.addEventListener('mousemove', (e) => {
+                if (!this.host.classList.contains('summary-focus-mode')) return;
+                
+                // 获取鼠标相对于侧边栏的Y坐标
+                const rect = sidebar.getBoundingClientRect();
+                const mouseY = e.clientY - rect.top;
+                
+                // 不同的显示和隐藏阈值，避免频繁闪烁
+                const SHOW_THRESHOLD = 30;  // 顶部30px触发显示
+                const HIDE_THRESHOLD = 400;  // 超过400px才隐藏（按钮位置）
+                
+                const isShowing = this.host.classList.contains('show-top-ui');
+                
+                if (!isShowing && mouseY < SHOW_THRESHOLD) {
+                    // 鼠标移到顶部时显示
+                    this.host.classList.add('show-top-ui');
+                } else if (isShowing && mouseY >= HIDE_THRESHOLD) {
+                    // 鼠标移出到按钮位置才隐藏
+                    this.host.classList.remove('show-top-ui');
+                }
+            });
+
+            // 鼠标离开侧边栏时隐藏UI
+            sidebar.addEventListener('mouseleave', () => {
+                if (this.host.classList.contains('summary-focus-mode')) {
+                    this.host.classList.remove('show-top-ui');
+                }
+            });
         }
 
         toggleTheme() {
@@ -2214,6 +2376,31 @@
             } else {
                 this.host.classList.remove('dark-theme');
                 this.Q('#btn-theme').textContent = '🌙';
+            }
+        }
+
+        toggleFocusMode() {
+            const isFocusMode = this.host.classList.contains('summary-focus-mode');
+            
+            if (isFocusMode) {
+                // 退出聚焦模式
+                this.host.classList.remove('summary-focus-mode');
+                this.host.classList.remove('show-top-ui');
+                this.Q('#btn-focus').textContent = '🎯';
+                this.Q('#btn-focus').setAttribute('data-tooltip', '聚焦模式');
+                this.showToast('已退出聚焦模式');
+            } else {
+                // 进入聚焦模式
+                if (this.currentTab === 'summary' && this.lastSummary) {
+                    this.host.classList.add('summary-focus-mode');
+                    this.Q('#btn-focus').textContent = '🔙';
+                    this.Q('#btn-focus').setAttribute('data-tooltip', '退出聚焦');
+                    this.showToast('已进入聚焦模式');
+                } else if (this.currentTab !== 'summary') {
+                    this.showToast('请先切换到"总结"标签', 'error');
+                } else {
+                    this.showToast('请先生成总结内容', 'error');
+                }
             }
         }
 
@@ -2348,6 +2535,15 @@
                 sidebar.classList.remove('open');
                 btn.classList.remove('arrow-flip');
                 this.squeezeBody(false);
+                // 关闭侧边栏时退出聚焦模式
+                this.host.classList.remove('summary-focus-mode');
+                this.host.classList.remove('show-top-ui');
+                // 同步更新按钮状态
+                const focusBtn = this.Q('#btn-focus');
+                if (focusBtn) {
+                    focusBtn.textContent = '🎯';
+                    focusBtn.setAttribute('data-tooltip', '聚焦模式');
+                }
             }
 
             this.updateButtonPosition();
@@ -2378,6 +2574,17 @@
                 p.classList.toggle('active', p.id === `page-${tabName}`);
             });
             this.currentTab = tabName;
+            // 切换到其他标签时退出聚焦模式
+            if (tabName !== 'summary') {
+                this.host.classList.remove('summary-focus-mode');
+                this.host.classList.remove('show-top-ui');
+                // 同步更新按钮状态
+                const focusBtn = this.Q('#btn-focus');
+                if (focusBtn) {
+                    focusBtn.textContent = '🎯';
+                    focusBtn.setAttribute('data-tooltip', '聚焦模式');
+                }
+            }
             if (tabName === 'chat') {
                 setTimeout(() => this.updateScrollButtons(), 100);
             }
@@ -2422,6 +2629,14 @@
             if (!start || !end || parseInt(start) > parseInt(end)) return alert('楼层范围无效');
 
             this.setLoading('#btn-summary', true);
+            // 启用聚焦模式
+            this.host.classList.add('summary-focus-mode');
+            // 更新聚焦按钮状态
+            const focusBtn = this.Q('#btn-focus');
+            if (focusBtn) {
+                focusBtn.textContent = '🔙';
+                focusBtn.setAttribute('data-tooltip', '退出聚焦');
+            }
             const resultBox = this.Q('#summary-result');
             resultBox.classList.remove('empty');
             resultBox.innerHTML = `
