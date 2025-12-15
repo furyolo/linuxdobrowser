@@ -173,8 +173,8 @@ style.textContent = `
 .userscript-rb .rb-float-button {
     position: fixed !important;
     right: 20px !important;
-    top: 50% !important;
-    transform: translateY(-50%) !important;
+    top: 33.33% !important;
+    transform: translateY(0) !important;
     background: var(--tertiary) !important;
     color: #fff !important;
     width: 48px !important;
@@ -190,7 +190,7 @@ style.textContent = `
 }
 
 .userscript-rb .rb-float-button:hover {
-    transform: translateY(-50%) scale(1.1) !important;
+    transform: scale(1.1) !important;
 }
 
 .userscript-rb .rb-float-button svg {
