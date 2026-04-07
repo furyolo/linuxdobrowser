@@ -1,18 +1,17 @@
 // ==UserScript==
 // @name        Multi-Forum Reader
-// @namespace   multi_forum_FlowReader
+// @namespace   multi_forum_Reader
 // @match       https://linux.do/t/topic/*
 // @match       https://idcflare.com/t/topic/*
 // @icon        https://linux.do/favicon.ico
 // @grant       GM_setValue
 // @grant       GM_getValue
 // @version     2.3.0
-// @author      Neuroplexus & Andy
+// @author      Andy
 // ==/UserScript==
 
-// 注入样式
-const style = document.createElement('style');
-style.textContent = `
+// 样式文本
+const STYLE_TEXT = `
 .userscript-rb .rb-overlay {
     position: fixed !important;
     top: 0 !important;
@@ -224,7 +223,17 @@ style.textContent = `
     }
 }
 `;
-document.head.appendChild(style);
+
+const SETTINGS_MOUNT_SELECTORS = [
+    ".header-buttons",
+    ".timeline-controls",
+    ".timeline-footer-controls"
+];
+
+const SCRIPT_UI_SELECTORS = [
+    '[data-flowreader-role="settings-button"]',
+    '[data-flowreader-role="float-button-wrapper"]'
+];
 
 // 默认配置
 const DEFAULT_CONFIG = {
@@ -239,32 +248,225 @@ const DEFAULT_CONFIG = {
 };
 
 // 全局变量
-let config = { ...DEFAULT_CONFIG, ...getStoredConfig() };
-const currentDomain = window.location.hostname;
-const currentProtocol = window.location.protocol;
-const topicID = window.location.pathname.split("/")[3];
-const repliesInfo = document.querySelector("div[class=timeline-replies]").textContent.trim();
-const [currentPosition, totalReplies] = repliesInfo.split("/").map(part => parseInt(part.trim(), 10));
-const csrfToken = document.querySelector("meta[name=csrf-token]").getAttribute("content");
+let config = { ...DEFAULT_CONFIG };
+let currentDomain = "";
+let currentProtocol = "";
+let topicID = "";
+let pageContext = null;
+const runtimeState = {
+    lastRouteSignature: null,
+    routeListenersInstalled: false,
+    routeChangeTimer: null
+};
+
+function parseRepliesInfo(repliesInfo) {
+    if (typeof repliesInfo !== "string") {
+        return null;
+    }
+
+    const [currentPosition, totalReplies] = repliesInfo
+        .split("/")
+        .map(part => Number.parseInt(part.trim(), 10));
+
+    if (!Number.isFinite(currentPosition) || !Number.isFinite(totalReplies)) {
+        return null;
+    }
+
+    return { currentPosition, totalReplies };
+}
+
+function resolveSettingsMountPoint(doc = document) {
+    for (const selector of SETTINGS_MOUNT_SELECTORS) {
+        const mountPoint = doc.querySelector(selector);
+        if (mountPoint) {
+            return mountPoint;
+        }
+    }
+
+    return null;
+}
+
+function getTopicID(pathname) {
+    return pathname.split("/")[3] ?? "";
+}
+
+function getRouteSignature(locationLike = window.location) {
+    const pathname = locationLike?.pathname ?? "";
+    if (!pathname.startsWith("/t/topic/")) {
+        return null;
+    }
+
+    const currentTopicID = getTopicID(pathname);
+    if (!currentTopicID) {
+        return null;
+    }
+
+    return `topic:${currentTopicID}`;
+}
+
+function getPageContext(doc = document, locationLike = window.location) {
+    const repliesElement = doc.querySelector(".timeline-replies");
+    const csrfTokenElement = doc.querySelector('meta[name="csrf-token"]');
+    const parsedReplies = parseRepliesInfo(repliesElement?.textContent?.trim() ?? "");
+    const csrfToken = csrfTokenElement?.getAttribute("content") ?? "";
+
+    if (!parsedReplies || !csrfToken) {
+        return null;
+    }
+
+    return {
+        ...parsedReplies,
+        csrfToken,
+        topicID: getTopicID(locationLike.pathname ?? "")
+    };
+}
+
+function injectStyles(doc = document) {
+    if (doc.getElementById("flowreader-style")) {
+        return;
+    }
+
+    const style = doc.createElement("style");
+    style.id = "flowreader-style";
+    style.textContent = STYLE_TEXT;
+    doc.head.appendChild(style);
+}
+
+function syncRuntimeState() {
+    currentDomain = window.location.hostname;
+    currentProtocol = window.location.protocol;
+    topicID = getTopicID(window.location.pathname);
+    pageContext = getPageContext();
+    return pageContext;
+}
+
+function waitForPageContext(timeout = 10000, interval = 250) {
+    return new Promise((resolve, reject) => {
+        const startedAt = Date.now();
+
+        const tryResolve = () => {
+            const context = syncRuntimeState();
+            if (context) {
+                resolve(context);
+                return;
+            }
+
+            if (Date.now() - startedAt >= timeout) {
+                reject(new Error("未找到时间轴或 CSRF 信息"));
+                return;
+            }
+
+            setTimeout(tryResolve, interval);
+        };
+
+        tryResolve();
+    });
+}
+
+function cleanupScriptUI(doc = document) {
+    for (const selector of SCRIPT_UI_SELECTORS) {
+        doc.querySelectorAll(selector).forEach(node => node.remove());
+    }
+}
+
+async function handleRouteChange(state = runtimeState, options = {}) {
+    const locationLike = options.locationLike ?? window.location;
+    const nextRouteSignature = getRouteSignature(locationLike);
+    const cleanupUI = options.cleanupUI ?? cleanupScriptUI;
+    const targetDocument = options.doc ?? (typeof document !== "undefined" ? document : undefined);
+
+    if (!nextRouteSignature) {
+        cleanupUI(targetDocument);
+        state.lastRouteSignature = null;
+        return false;
+    }
+
+    if (state.lastRouteSignature === nextRouteSignature) {
+        return false;
+    }
+
+    await (options.waitForContext ?? waitForPageContext)();
+    const latestContext = (options.syncState ?? syncRuntimeState)();
+    if (!latestContext) {
+        return false;
+    }
+
+    cleanupUI(targetDocument);
+    (options.setupUI ?? setupUI)();
+    state.lastRouteSignature = nextRouteSignature;
+
+    if ((options.config ?? config).autoStart) {
+        await (options.startReading ?? startReading)();
+    }
+
+    return true;
+}
+
+function scheduleRouteChangeCheck() {
+    if (runtimeState.routeChangeTimer) {
+        clearTimeout(runtimeState.routeChangeTimer);
+    }
+
+    runtimeState.routeChangeTimer = setTimeout(() => {
+        handleRouteChange().catch(error => {
+            console.error("FlowReader 路由切换处理失败：", error);
+        });
+    }, 150);
+}
+
+function installRouteChangeListeners() {
+    if (runtimeState.routeListenersInstalled) {
+        return;
+    }
+
+    const notifyRouteChange = () => {
+        scheduleRouteChangeCheck();
+    };
+
+    for (const methodName of ["pushState", "replaceState"]) {
+        const originalMethod = window.history[methodName];
+        window.history[methodName] = function (...args) {
+            const result = originalMethod.apply(this, args);
+            notifyRouteChange();
+            return result;
+        };
+    }
+
+    window.addEventListener("popstate", notifyRouteChange);
+    runtimeState.routeListenersInstalled = true;
+}
 
 // 初始化
-function initialize() {
+async function initialize() {
     if (['neo', 'musifei', 'smnet'].some(keyword => document.getElementById('toggle-current-user')?.getAttribute('aria-label')?.toLowerCase().includes(keyword) ?? false)) {
         showStatus("内部错误", "error");
         return;
     }
-    setupUI();
+
+    try {
+        await handleRouteChange();
+    } catch (error) {
+        console.error("FlowReader 初始化失败：", error);
+    }
 }
 
 // 设置UI
 function setupUI() {
-    const headerButtons = document.querySelector(".header-buttons");
-    const settingsButton = createButton("设置", () => showSettings());
-    headerButtons.appendChild(settingsButton);
+    if (document.querySelector('[data-flowreader-role="float-button-wrapper"]')) {
+        return;
+    }
+
+    const settingsMountPoint = resolveSettingsMountPoint();
+    if (settingsMountPoint) {
+        const settingsButton = createButton("设置", () => showSettings());
+        settingsButton.dataset.flowreaderRole = "settings-button";
+        settingsMountPoint.appendChild(settingsButton);
+    }
 
     // 添加浮动开始按钮
     const floatButton = document.createElement("div");
     floatButton.className = "userscript-rb";
+    floatButton.dataset.flowreaderRole = "float-button-wrapper";
     floatButton.innerHTML = `
         <div class="rb-float-button" title="开始阅读">
             <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -275,10 +477,6 @@ function setupUI() {
     `;
     document.body.appendChild(floatButton);
     floatButton.querySelector(".rb-float-button").addEventListener("click", startReading);
-
-    if (config.autoStart) {
-        startReading();
-    }
 }
 
 // 创建按钮
@@ -457,6 +655,10 @@ function resetSettings() {
 
 // 获取存储的配置
 function getStoredConfig() {
+    if (typeof GM_getValue !== "function") {
+        return {};
+    }
+
     return Object.keys(DEFAULT_CONFIG).reduce((acc, key) => {
         acc[key] = GM_getValue(key, DEFAULT_CONFIG[key]);
         return acc;
@@ -511,7 +713,7 @@ function createBatchParams(startId, endId) {
     ).toString();
 
     params.append('topic_time', topicTime);
-    params.append('topic_id', topicID);
+    params.append('topic_id', pageContext?.topicID ?? topicID);
     return params;
 }
 
@@ -530,7 +732,7 @@ async function sendBatch(startId, endId, retryCount = 3) {
                 "sec-fetch-dest": "empty",
                 "sec-fetch-mode": "cors",
                 "sec-fetch-site": "same-origin",
-                "x-csrf-token": csrfToken,
+                "x-csrf-token": pageContext?.csrfToken ?? "",
                 "x-requested-with": "XMLHttpRequest",
                 "x-silence-logger": "true"
             },
@@ -563,12 +765,18 @@ async function sendBatch(startId, endId, retryCount = 3) {
 
 // 开始阅读跟帖
 async function startReading() {
-    showStatus(`从第 ${currentPosition} 帖开始阅读...`, "success");
+    const latestContext = syncRuntimeState();
+    if (!latestContext) {
+        showStatus("未找到时间轴信息，暂时无法开始阅读", "error");
+        return;
+    }
 
-    for (let i = currentPosition; i <= totalReplies;) {
+    showStatus(`从第 ${latestContext.currentPosition} 帖开始阅读...`, "success");
+
+    for (let i = latestContext.currentPosition; i <= latestContext.totalReplies;) {
         const batchSize = getRandomInt(config.minReqSize, config.maxReqSize);
         const startId = i;
-        const endId = Math.min(i + batchSize - 1, totalReplies);
+        const endId = Math.min(i + batchSize - 1, latestContext.totalReplies);
 
         const success = await sendBatch(startId, endId);
         if (success) {
@@ -582,5 +790,22 @@ async function startReading() {
     showStatus("所有跟帖阅读完成", "success");
 }
 
+if (typeof module !== "undefined" && module.exports) {
+    module.exports = {
+        cleanupScriptUI,
+        getRouteSignature,
+        getPageContext,
+        handleRouteChange,
+        parseRepliesInfo,
+        resolveSettingsMountPoint
+    };
+}
+
 // 启动脚本
-initialize();
+if (typeof window !== "undefined" && typeof document !== "undefined") {
+    injectStyles();
+    config = { ...DEFAULT_CONFIG, ...getStoredConfig() };
+    syncRuntimeState();
+    installRouteChangeListeners();
+    initialize();
+}
