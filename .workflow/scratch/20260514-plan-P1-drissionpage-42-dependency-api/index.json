@@ -1,0 +1,22 @@
+{
+  "session_id": "20260514-plan-P1-drissionpage-42-dependency-api",
+  "phase": "Phase 1",
+  "title": "DrissionPage 4.2 依赖与 API 差异确认",
+  "status": "completed",
+  "created_at": "2026-05-14T19:56:23+08:00",
+  "plan_path": ".workflow/scratch/20260514-plan-P1-drissionpage-42-dependency-api/plan.json",
+  "task_dir": ".workflow/scratch/20260514-plan-P1-drissionpage-42-dependency-api/.task",
+  "task_count": 2,
+  "tasks": [
+    "TASK-001",
+    "TASK-002"
+  ],
+  "source_roadmap": ".workflow/roadmap.md",
+  "csv_wave_session": ".workflow/.csv-wave/20260514-plan-P1-drissionpage-42-dependency-api",
+  "completed_at": "2026-05-14T20:30:00+08:00",
+  "completed_tasks": [
+    "TASK-001",
+    "TASK-002"
+  ],
+  "next_step": "$maestro-plan \"2\""
+}

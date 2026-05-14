@@ -1,0 +1,69 @@
+{
+  "id": "TASK-001",
+  "title": "执行 Python 基线与真实浏览器 smoke",
+  "wave": 1,
+  "status": "completed",
+  "depends_on": [],
+  "purpose": "确认 DrissionPage 4.2 迁移后的 Python 入口在静态检查和最小真实浏览器链路上可用，重点覆盖 Edge 启动、linux.do 访问、主题加载、中键打开新标签页、等待正文、滚动、关闭标签页和浏览器退出。",
+  "read_first": [
+    ".workflow/roadmap.md",
+    ".workflow/.csv-wave/20260514-execute-P2-python-drissionpage-42-migration/context.md",
+    ".workflow/scratch/20260514-plan-P2-python-drissionpage-42-migration/phase2-verification-notes.md",
+    "main.py",
+    "autobrowser.py",
+    "pyproject.toml",
+    "uv.lock",
+    "mypy.ini"
+  ],
+  "files": {
+    "owned": [
+      ".workflow/scratch/20260514-plan-P3-verification-regression-hardening/phase3-browser-smoke-notes.md",
+      "main.py",
+      "autobrowser.py"
+    ],
+    "read_only": [
+      "pyproject.toml",
+      "uv.lock",
+      "mypy.ini",
+      "README.md",
+      "CLAUDE.md",
+      "use_system_user.py"
+    ]
+  },
+  "steps": [
+    {
+      "name": "复跑 Python 基线验证",
+      "action": "运行 uv lock --check、DrissionPage import/signature probe 和 uv run mypy .，确认 Phase 2 后没有依赖或类型漂移。"
+    },
+    {
+      "name": "执行 Edge 真实浏览器 smoke",
+      "action": "优先使用 Edge 分支执行最小 smoke：echo edge | uv run main.py --mode short --num 1 --browser single。该命令会访问 linux.do 并依赖本机浏览器登录态。"
+    },
+    {
+      "name": "记录浏览链路事实",
+      "action": "在 phase3-browser-smoke-notes.md 记录 DrissionPage 版本、浏览器选择、是否具备登录态、命令、输出摘要、是否加载 .topic-list-body、是否打开主题新标签页、wait.eles_loaded/scroll/run_js/close/browser.quit 的观察结果。"
+    },
+    {
+      "name": "处理直接迁移回归",
+      "action": "如果失败明确来自 Phase 2 迁移或 DrissionPage 4.2 API 行为变化，做最小必要修复并重跑相关验证；如果失败来自本机浏览器路径、登录态、网络或 linux.do 当前页面结构，记录为环境/站点阻塞，不擅自改业务策略。"
+    },
+    {
+      "name": "保护本机配置",
+      "action": "不要自动执行 uv run use_system_user.py；如 smoke 显示需要系统用户配置，只在 notes 中记录需用户单独确认。"
+    }
+  ],
+  "convergence": {
+    "criteria": [
+      "uv lock --check",
+      "uv run python -c \"import inspect, importlib.metadata as md; from DrissionPage import Chromium, ChromiumOptions; print('DrissionPage version:', md.version('DrissionPage')); print('set_browser_path:', inspect.signature(ChromiumOptions.set_browser_path)); print('new_tab:', inspect.signature(Chromium.new_tab)); assert 'edge' in str(inspect.signature(ChromiumOptions.set_browser_path)); assert 'hidden' in str(inspect.signature(Chromium.new_tab))\"",
+      "uv run mypy .",
+      "Test-Path .workflow/scratch/20260514-plan-P3-verification-regression-hardening/phase3-browser-smoke-notes.md",
+      "Select-String -Path .workflow/scratch/20260514-plan-P3-verification-regression-hardening/phase3-browser-smoke-notes.md -Pattern 'DrissionPage version|browser|login|linux.do|uv run main.py --mode short --num 1|click.middle|wait.eles_loaded|scroll|close|browser.quit|result'"
+    ]
+  },
+  "notes": [
+    "真实 smoke 是外部站点和本机浏览器验证，执行时可能打开可见浏览器窗口。",
+    "不新增依赖，不引入 mock 浏览器测试替代真实 smoke。",
+    "除非出现明确迁移回归，不改变浏览策略、随机延迟、Semaphore(3) 或主题加载轮询。"
+  ]
+}

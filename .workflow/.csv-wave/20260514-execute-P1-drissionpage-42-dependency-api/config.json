@@ -1,0 +1,8 @@
+{
+  "session_id": "20260514-execute-P1-drissionpage-42-dependency-api",
+  "plan_dir": ".workflow/scratch/20260514-plan-P1-drissionpage-42-dependency-api",
+  "auto_commit": false,
+  "execution_method": "agent",
+  "max_concurrency": 5,
+  "started_at": "2026-05-14T20:00:00+08:00"
+}

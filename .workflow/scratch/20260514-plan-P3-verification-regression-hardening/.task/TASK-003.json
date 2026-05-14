@@ -1,0 +1,52 @@
+{
+  "id": "TASK-003",
+  "title": "汇总 Phase 3 验证报告",
+  "wave": 3,
+  "status": "completed",
+  "depends_on": ["TASK-001", "TASK-002"],
+  "purpose": "把 Python 真实浏览器 smoke 与 userscript 回归结果汇总为可追踪验证报告，并在全部通过时同步 roadmap Phase 3 状态。",
+  "read_first": [
+    ".workflow/roadmap.md",
+    ".workflow/scratch/20260514-plan-P3-verification-regression-hardening/phase3-browser-smoke-notes.md",
+    ".workflow/scratch/20260514-plan-P3-verification-regression-hardening/phase3-userscript-regression-notes.md",
+    ".workflow/.csv-wave/20260514-execute-P2-python-drissionpage-42-migration/context.md"
+  ],
+  "files": {
+    "owned": [
+      ".workflow/scratch/20260514-plan-P3-verification-regression-hardening/phase3-verification-report.md",
+      ".workflow/roadmap.md"
+    ],
+    "read_only": [
+      ".workflow/scratch/20260514-plan-P3-verification-regression-hardening/phase3-browser-smoke-notes.md",
+      ".workflow/scratch/20260514-plan-P3-verification-regression-hardening/phase3-userscript-regression-notes.md",
+      "main.py",
+      "autobrowser.py",
+      "userscripts/flowreader.user.js"
+    ]
+  },
+  "steps": [
+    {
+      "name": "汇总验证结果",
+      "action": "生成 phase3-verification-report.md，汇总 Python baseline、真实浏览器 smoke、userscript Node 回归、DrissionPage 版本、浏览器、登录态、失败或通过情况。"
+    },
+    {
+      "name": "记录风险和回退建议",
+      "action": "如存在 DrissionPage 4.2 beta 阻塞缺陷，记录版本、复现步骤、异常栈和建议回退到 Phase 1 前依赖范围或保留当前代码的条件。"
+    },
+    {
+      "name": "同步 roadmap 状态",
+      "action": "仅当 TASK-001 与 TASK-002 都通过时，把 .workflow/roadmap.md 中 Phase 3 状态从 Pending 改为 Completed；如果 smoke 被环境阻塞，保持 Pending 并在报告中说明。"
+    }
+  ],
+  "convergence": {
+    "criteria": [
+      "Test-Path .workflow/scratch/20260514-plan-P3-verification-regression-hardening/phase3-verification-report.md",
+      "Select-String -Path .workflow/scratch/20260514-plan-P3-verification-regression-hardening/phase3-verification-report.md -Pattern 'DrissionPage|Python smoke|userscript|node --check|node --test|uv run main.py --mode short --num 1|result|Phase 4'",
+      "Select-String -Path .workflow/roadmap.md -Pattern 'Phase 3|验证与回归加固'"
+    ]
+  },
+  "notes": [
+    "报告必须区分通过、代码回归、环境阻塞和站点结构变化。",
+    "不要把未通过或未执行的真实 smoke 写成通过。"
+  ]
+}

@@ -1,0 +1,130 @@
+{
+  "id": "PLAN-P4-docs-specs-wrap-up",
+  "title": "Phase 4：文档、specs 和收尾",
+  "phase": "Phase 4",
+  "goal": "把 DrissionPage 4.2 迁移的最终状态同步到 README、CLAUDE、workflow specs 和项目状态，使后续维护者能清楚知道已验证内容、剩余 beta 风险和安全边界。",
+  "status": "completed",
+  "created_at": "2026-05-14T21:35:20+08:00",
+  "updated_at": "2026-05-14T21:58:52+08:00",
+  "output_dir": ".workflow/scratch/20260514-plan-P4-docs-specs-wrap-up",
+  "task_dir": ".workflow/scratch/20260514-plan-P4-docs-specs-wrap-up/.task",
+  "task_count": 3,
+  "complexity": "medium",
+  "scope": {
+    "in": [
+      "更新 README、CLAUDE 和 .workflow/project.md，使其反映 DrissionPage 4.2.0b3 迁移、Phase 3 真实 smoke 通过和 userscript 回归通过。",
+      "补充 workflow specs/learning/debug 记录：DrissionPage 4.2 beta 风险、私有模块禁用、use_system_user 写配置边界、最终验证命令。",
+      "整理 roadmap/state 和最终迁移总结，确认 Phase 4 完成后 roadmap 全部阶段状态一致。",
+      "运行轻量收尾验证：uv lock --check、uv run mypy .、node --check、node --test、静态 stale text 检查。"
+    ],
+    "out": [
+      "不重复执行真实浏览器 smoke；Phase 4 引用 Phase 3 已通过报告。",
+      "不运行 uv run use_system_user.py，避免写本机 DrissionPage 配置。",
+      "不新增依赖、不引入新测试框架、不改变业务浏览策略。",
+      "不清理或重写历史 workflow artifact 中合理存在的 Phase 1/2/3 记录。"
+    ]
+  },
+  "source_context": [
+    ".workflow/roadmap.md Phase 4：文档、specs 和收尾。",
+    ".workflow/.csv-wave/20260514-execute-P3-verification-regression-hardening/context.md：Phase 3 已通过真实浏览器 smoke 和 userscript 回归。",
+    ".workflow/scratch/20260514-plan-P3-verification-regression-hardening/phase3-verification-report.md：最终验证事实。",
+    "README.md 与 CLAUDE.md 当前已有 4.2 beta 基础说明，但还需要从 Phase 3 边界表述升级为已验证事实。",
+    "DrissionPage 4.2 官方文档：https://www.drissionpage.cn/features/4.2"
+  ],
+  "waves": [
+    {
+      "wave": 1,
+      "name": "最终用户文档同步",
+      "tasks": ["TASK-001"],
+      "depends_on": []
+    },
+    {
+      "wave": 2,
+      "name": "specs 与知识固化",
+      "tasks": ["TASK-002"],
+      "depends_on": ["TASK-001"]
+    },
+    {
+      "wave": 3,
+      "name": "最终审计与状态收口",
+      "tasks": ["TASK-003"],
+      "depends_on": ["TASK-002"]
+    }
+  ],
+  "tasks": [
+    {
+      "id": "TASK-001",
+      "title": "同步最终用户与维护文档",
+      "summary": "更新 README、CLAUDE 和 project.md，明确 DrissionPage 4.2.0b3、Phase 3 已验证的 Edge smoke、userscript 回归结果和 use_system_user 配置写入边界。",
+      "depends_on": [],
+      "status": "completed"
+    },
+    {
+      "id": "TASK-002",
+      "title": "固化 specs 与迁移知识",
+      "summary": "把最终迁移约束、验证命令、beta 风险和配置写入边界补入 workflow specs，使用闭合 spec-entry 格式。",
+      "depends_on": ["TASK-001"],
+      "status": "completed"
+    },
+    {
+      "id": "TASK-003",
+      "title": "执行最终审计与状态收口",
+      "summary": "运行轻量验证和 stale text 检查，生成最终迁移总结，更新 roadmap/state 标记 Phase 4 和整体迁移完成。",
+      "depends_on": ["TASK-002"],
+      "status": "completed"
+    }
+  ],
+  "convergence": {
+    "criteria": [
+      "Select-String -Path README.md -Pattern 'DrissionPage >=4\\.2\\.0b3,<4\\.3|4\\.2\\.0b3|Edge.*smoke|userscript'",
+      "Select-String -Path CLAUDE.md -Pattern '4\\.2\\.0b3|Phase 3.*passed|DrissionPage\\._pages|use_system_user'",
+      "Select-String -Path .workflow/project.md -Pattern 'DrissionPage 4\\.2|4\\.2\\.0b3|Phase 3|Last updated'",
+      "Select-String -Path .workflow/specs/coding-conventions.md,.workflow/specs/quality-rules.md,.workflow/specs/learnings.md,.workflow/specs/debug-notes.md -Pattern '4\\.2\\.0b3|DrissionPage\\._pages|use_system_user|Phase 3|真实浏览器 smoke'",
+      "uv lock --check",
+      "uv run mypy .",
+      "node --check userscripts/flowreader.user.js",
+      "node --test userscripts/tests/flowreader.user.test.js",
+      "Test-Path .workflow/scratch/20260514-plan-P4-docs-specs-wrap-up/final-migration-summary.md",
+      "Select-String -Path .workflow/roadmap.md -Pattern '\\| 4 \\| Completed \\| 文档、specs 和收尾 \\|'"
+    ],
+    "artifacts": [
+      "README.md",
+      "CLAUDE.md",
+      ".workflow/project.md",
+      ".workflow/roadmap.md",
+      ".workflow/state.json",
+      ".workflow/specs/coding-conventions.md",
+      ".workflow/specs/quality-rules.md",
+      ".workflow/specs/learnings.md",
+      ".workflow/specs/debug-notes.md",
+      ".workflow/scratch/20260514-plan-P4-docs-specs-wrap-up/final-migration-summary.md"
+    ]
+  },
+  "quality_check": {
+    "requirements_coverage": "pass",
+    "dependency_correctness": "pass",
+    "collision_safety": "pass",
+    "task_grouping": "pass",
+    "readiness_gate": "pass",
+    "notes": [
+      "Phase 4 不再改业务逻辑，任务边界集中在文档、specs 和 workflow 状态。",
+      "最终审计运行轻量命令，不重复真实浏览器 smoke。",
+      "历史 artifacts 中出现 DrissionPage 4.1 或 Phase 3 pending 属于历史记录，不作为必须重写目标。"
+    ]
+  },
+  "confidence": {
+    "overall": 0.9,
+    "requirements_coverage": 0.94,
+    "task_quality": 0.9,
+    "dependency_correctness": 0.92,
+    "estimation_accuracy": 0.88,
+    "collision_safety": 0.86,
+    "weakest_dimension": "collision_safety",
+    "rationale": "Phase 4 主要是文档和状态收尾，风险低；但 README、CLAUDE、workflow specs 和 state 同时改动，需要注意不覆盖历史 artifact 和其他未提交变更。"
+  },
+  "references": [
+    "https://www.drissionpage.cn/features/4.2",
+    ".workflow/.csv-wave/20260514-execute-P3-verification-regression-hardening/context.md",
+    ".workflow/scratch/20260514-plan-P3-verification-regression-hardening/phase3-verification-report.md"
+  ]
+}

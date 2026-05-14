@@ -1,0 +1,3 @@
+{"ts":"2026-05-14T21:12:00+08:00","worker":"TASK-001","type":"code_pattern","data":{"name":"DrissionPage tab-like Protocol","file":"autobrowser.py","description":"Use local Protocol to describe the DrissionPage tab capabilities used by business code instead of importing private DrissionPage page classes."}}
+{"ts":"2026-05-14T21:12:00+08:00","worker":"TASK-002","type":"test_command","data":{"command":"uv run mypy .","scope":"Python DrissionPage migration","result":"passed"}}
+{"ts":"2026-05-14T21:12:00+08:00","worker":"TASK-003","type":"convention","data":{"naming":"DrissionPage private module rule","imports":"Business code must not import DrissionPage._pages.*; use public APIs, local Protocol, or local Any.","formatting":"Specs use closed spec-entry tags."}}

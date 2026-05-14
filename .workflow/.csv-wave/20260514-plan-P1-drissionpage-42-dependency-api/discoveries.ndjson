@@ -1,0 +1,2 @@
+{"date":"2026-05-14","type":"source","source":"https://www.drissionpage.cn/features/4.2","summary":"DrissionPage 4.2 官方页面说明该版本当前为测试版；迁移关注点包括 WebPage 删除/合并、MixTab 功能合并到 ChromiumTab、ChromiumOptions.set_browser_path(edge=True)、Chromium.new_tab(hidden=True)、click() 随机位置和 wait_stop 默认 False。"}
+{"date":"2026-05-14","type":"codebase","source":".workflow/roadmap.md:40","summary":"本次 plan 默认解析为 roadmap Phase 1：依赖与 API 差异确认，成功标准是依赖声明/lock 一致、最小导入探测通过、形成明确修改清单。"}

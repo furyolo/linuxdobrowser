@@ -1,0 +1,23 @@
+{
+  "id": "20260514-plan-P2-python-drissionpage-42-migration",
+  "type": "plan",
+  "phase": "Phase 2",
+  "title": "Python DrissionPage 4.2 调用迁移",
+  "status": "completed",
+  "created_at": "2026-05-14T20:53:55+08:00",
+  "updated_at": "2026-05-14T20:53:55+08:00",
+  "plan": {
+    "path": ".workflow/scratch/20260514-plan-P2-python-drissionpage-42-migration/plan.json",
+    "task_ids": ["TASK-001", "TASK-002", "TASK-003"],
+    "task_count": 3,
+    "complexity": "medium",
+    "waves": 3,
+    "confidence_overall": 0.86
+  },
+  "source_session": ".workflow/.csv-wave/20260514-plan-P2-python-drissionpage-42-migration",
+  "depends_on": [
+    ".workflow/scratch/20260514-plan-P1-drissionpage-42-dependency-api/plan.json",
+    ".workflow/.csv-wave/20260514-execute-P1-drissionpage-42-dependency-api/context.md"
+  ],
+  "next_command": "$maestro-execute 20260514-plan-P2-python-drissionpage-42-migration"
+}

@@ -1,0 +1,4 @@
+{"date":"2026-05-14","type":"source","source":"https://www.drissionpage.cn/features/4.2","summary":"DrissionPage 4.2 当前为测试版；核心变化包含底层重构、WebPage 删除/合并、MixTab 功能合并到 ChromiumTab、新增 new_tab(hidden=True)、ChromiumOptions.set_browser_path(edge=True)、remove_test_type()；API 行为变化包含 ChromiumTab/ChromiumFrame 删除 reconnect()、click() 随机位置、click(wait_stop) 默认 False。"}
+{"date":"2026-05-14","type":"codebase","source":"autobrowser.py:7","summary":"当前代码从 DrissionPage._pages.mix_tab 私有路径导入 MixTab，4.2 中 MixTab 功能合并到 ChromiumTab，此处是迁移首要风险点。"}
+{"date":"2026-05-14","type":"codebase","source":"main.py:14","summary":"当前 Edge 与其它浏览器都通过 set_browser_path(path) 指定；4.2 新增 edge=True，可优先用于 Edge 默认路径，保留其它 Chromium 内核浏览器显式 path。"}
+{"date":"2026-05-14","type":"codebase","source":"uv.lock:157","summary":"当前 lock 中 drissionpage 已解析到 4.2.0b3，但 pyproject.toml 仍声明 >=4.1.1.1，依赖声明与锁文件需要统一。"}

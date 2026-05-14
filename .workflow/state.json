@@ -1,0 +1,117 @@
+{
+  "version": "2.0",
+  "project_name": "linuxdobrowser",
+  "status": "phase-4-completed",
+  "current_milestone": null,
+  "current_task_id": null,
+  "milestones": [],
+  "artifacts": [
+    {
+      "type": "roadmap",
+      "path": ".workflow/roadmap.md",
+      "status": "active",
+      "created_at": "2026-05-14T19:39:08+08:00"
+    },
+    {
+      "type": "plan",
+      "path": ".workflow/scratch/20260514-plan-P1-drissionpage-42-dependency-api/plan.json",
+      "status": "completed",
+      "created_at": "2026-05-14T19:56:23+08:00",
+      "completed_at": "2026-05-14T20:30:00+08:00"
+    },
+    {
+      "type": "execution",
+      "path": ".workflow/.csv-wave/20260514-execute-P1-drissionpage-42-dependency-api/context.md",
+      "status": "completed",
+      "completed_at": "2026-05-14T20:30:00+08:00"
+    },
+    {
+      "id": "PLN-P2-drissionpage-42-python-migration",
+      "type": "plan",
+      "phase": "Phase 2",
+      "scope": "phase",
+      "path": ".workflow/scratch/20260514-plan-P2-python-drissionpage-42-migration/plan.json",
+      "status": "completed",
+      "created_at": "2026-05-14T20:53:55+08:00",
+      "completed_at": "2026-05-14T20:53:55+08:00",
+      "depends_on": ".workflow/.csv-wave/20260514-execute-P1-drissionpage-42-dependency-api/context.md"
+    },
+    {
+      "id": "EXC-P2-drissionpage-42-python-migration",
+      "type": "execute",
+      "phase": "Phase 2",
+      "scope": "phase",
+      "path": ".workflow/.csv-wave/20260514-execute-P2-python-drissionpage-42-migration/context.md",
+      "status": "completed",
+      "harvested": true,
+      "created_at": "2026-05-14T21:12:00+08:00",
+      "completed_at": "2026-05-14T21:12:00+08:00",
+      "depends_on": "PLN-P2-drissionpage-42-python-migration"
+    },
+    {
+      "id": "PLN-P3-verification-regression-hardening",
+      "type": "plan",
+      "phase": "Phase 3",
+      "scope": "phase",
+      "path": ".workflow/scratch/20260514-plan-P3-verification-regression-hardening/plan.json",
+      "status": "completed",
+      "created_at": "2026-05-14T21:13:58+08:00",
+      "completed_at": "2026-05-14T21:13:58+08:00",
+      "depends_on": "EXC-P2-drissionpage-42-python-migration"
+    },
+    {
+      "id": "EXC-P3-verification-regression-hardening",
+      "type": "execute",
+      "phase": "Phase 3",
+      "scope": "phase",
+      "path": ".workflow/.csv-wave/20260514-execute-P3-verification-regression-hardening/context.md",
+      "status": "completed",
+      "harvested": true,
+      "created_at": "2026-05-14T21:30:43+08:00",
+      "completed_at": "2026-05-14T21:30:43+08:00",
+      "depends_on": "PLN-P3-verification-regression-hardening"
+    },
+    {
+      "id": "PLN-P4-docs-specs-wrap-up",
+      "type": "plan",
+      "phase": "Phase 4",
+      "scope": "phase",
+      "path": ".workflow/scratch/20260514-plan-P4-docs-specs-wrap-up/plan.json",
+      "status": "completed",
+      "created_at": "2026-05-14T21:35:20+08:00",
+      "completed_at": "2026-05-14T21:35:20+08:00",
+      "depends_on": "EXC-P3-verification-regression-hardening"
+    },
+    {
+      "id": "EXC-P4-docs-specs-wrap-up",
+      "type": "execute",
+      "phase": "Phase 4",
+      "scope": "phase",
+      "path": ".workflow/.csv-wave/20260514-execute-P4-docs-specs-wrap-up/context.md",
+      "status": "completed",
+      "harvested": false,
+      "created_at": "2026-05-14T21:58:52+08:00",
+      "completed_at": "2026-05-14T21:58:52+08:00",
+      "depends_on": "PLN-P4-docs-specs-wrap-up"
+    }
+  ],
+  "last_updated": "2026-05-14T21:58:52+08:00",
+  "accumulated_context": {
+    "key_decisions": [
+      "按已有代码库 onboarding 初始化 .workflow",
+      "项目范围包含 Python/DrissionPage 自动化与 userscripts 辅助阅读",
+      "DrissionPage 4.2 迁移 Phase 1 已完成：依赖约束为 drissionpage>=4.2.0b3,<4.3，并已产出 API/迁移清单",
+      "Phase 2 已完成：Python 调用迁移、无真实浏览器副作用验证、README/CLAUDE/specs 同步",
+      "业务代码不再导入 DrissionPage 私有模块路径；tab-like 类型使用本地 Protocol/Any",
+      "Phase 3 已完成：Edge 真实浏览器 smoke 通过，userscript Node 回归 7 pass 0 fail",
+      "Phase 4 已完成：最终文档同步、specs/knowledge 固化、轻量审计与状态收口",
+      "DrissionPage 4.2 迁移已完成：当前验证版本为 4.2.0b3，后续仍按 beta/pre-release 风险维护"
+    ],
+    "blockers": [],
+    "deferred": [
+      "uv run use_system_user.py 会写本机配置，仍需单独确认后才执行"
+    ]
+  },
+  "transition_history": [],
+  "milestone_history": []
+}

@@ -10,6 +10,8 @@ async def browse_with_browser(browser_choice: str, mode: str, browser_paths: Dic
     co: ChromiumOptions
     if browser_choice == "":
         co = ChromiumOptions()
+    elif browser_choice == "edge":
+        co = ChromiumOptions().set_browser_path(edge=True)
     elif browser_choice in browser_paths:
         path: str = browser_paths[browser_choice]
         co = ChromiumOptions().set_browser_path(path)

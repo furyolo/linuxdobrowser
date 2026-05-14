@@ -1,0 +1,70 @@
+{
+  "id": "TASK-003",
+  "title": "执行最终审计与状态收口",
+  "wave": 3,
+  "status": "completed",
+  "depends_on": ["TASK-002"],
+  "purpose": "运行轻量验证与 stale text 检查，生成最终迁移总结，并同步 roadmap/state 表示 DrissionPage 4.2 迁移全阶段完成。",
+  "read_first": [
+    ".workflow/roadmap.md",
+    ".workflow/state.json",
+    ".workflow/scratch/20260514-plan-P3-verification-regression-hardening/phase3-verification-report.md",
+    "README.md",
+    "CLAUDE.md",
+    ".workflow/project.md",
+    ".workflow/specs/coding-conventions.md",
+    ".workflow/specs/quality-rules.md",
+    ".workflow/specs/learnings.md",
+    ".workflow/specs/debug-notes.md"
+  ],
+  "files": {
+    "owned": [
+      ".workflow/scratch/20260514-plan-P4-docs-specs-wrap-up/final-migration-summary.md",
+      ".workflow/roadmap.md",
+      ".workflow/state.json"
+    ],
+    "read_only": [
+      "README.md",
+      "CLAUDE.md",
+      ".workflow/project.md",
+      "pyproject.toml",
+      "autobrowser.py",
+      "main.py",
+      "userscripts/flowreader.user.js"
+    ]
+  },
+  "steps": [
+    {
+      "name": "运行轻量验证",
+      "action": "运行 uv lock --check、uv run mypy .、node --check userscripts/flowreader.user.js、node --test userscripts/tests/flowreader.user.test.js。不要重复真实浏览器 smoke。"
+    },
+    {
+      "name": "执行 stale text 审计",
+      "action": "检查 README、CLAUDE、project.md、roadmap 和 specs 中是否仍有过时 DrissionPage 4.1 依赖表述或 Phase 3 未验证表述；历史 scratch/context 中的旧表述只在总结中说明为历史记录。"
+    },
+    {
+      "name": "生成最终总结",
+      "action": "创建 final-migration-summary.md，列出依赖版本、代码改动、验证命令、Phase 3 结果、剩余 beta 风险、use_system_user 边界和后续维护建议。"
+    },
+    {
+      "name": "同步 workflow 状态",
+      "action": "将 roadmap Phase 4 标记 Completed，并更新 state.json status、artifacts、last_updated 和 key_decisions。"
+    }
+  ],
+  "convergence": {
+    "criteria": [
+      "uv lock --check",
+      "uv run mypy .",
+      "node --check userscripts/flowreader.user.js",
+      "node --test userscripts/tests/flowreader.user.test.js",
+      "Test-Path .workflow/scratch/20260514-plan-P4-docs-specs-wrap-up/final-migration-summary.md",
+      "Select-String -Path .workflow/scratch/20260514-plan-P4-docs-specs-wrap-up/final-migration-summary.md -Pattern 'DrissionPage|4\\.2\\.0b3|Phase 3|Edge|userscript|7 pass|use_system_user|beta'",
+      "Select-String -Path .workflow/roadmap.md -Pattern '\\| 4 \\| Completed \\| 文档、specs 和收尾 \\|'",
+      "Select-String -Path .workflow/state.json -Pattern 'phase-4-completed|DrissionPage 4.2 迁移已完成'"
+    ]
+  },
+  "notes": [
+    "最终审计不应清理历史 workflow artifact。",
+    "git status 只用于报告当前迁移相关文件，不自动 stage 或 commit。"
+  ]
+}

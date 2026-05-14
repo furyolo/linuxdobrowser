@@ -1,0 +1,5 @@
+id,title,description,analysis_focus,deps,context_from,wave,status,findings,error
+"1","Scope Analysis","分析 DrissionPage 4.2 升级对当前仓库的直接影响范围，区分必须改动、验证项和非目标。","scope","","","1","completed","影响集中在 Python 侧：pyproject/uv.lock、main.py、autobrowser.py、use_system_user.py、README/CLAUDE 文档。userscript 不依赖 DrissionPage，不纳入迁移实现。","",""
+"2","Risk Analysis","识别 DrissionPage 4.2 API 与行为变化带来的运行风险和验证风险。","risk","","","1","completed","主要风险是 private MixTab 导入失效、click/wait_stop 行为变化、Edge 启动参数变化、4.2 当前为测试版导致 API 稳定性不足。需要浏览器 smoke test 和最小回归验证。","",""
+"3","Dependency Analysis","梳理迁移任务之间的先后顺序和可并行工作。","dependency","","","1","completed","先锁定依赖与 API 差异，再改 Python 调用，随后补验证和文档。README/CLAUDE 文档可在代码验证通过后并行更新。","",""
+"4","Roadmap Assembly","将分析结果合成可执行路线图，包含阶段、成功标准和里程碑。","","1;2;3","1;2;3","2","completed","生成 4 阶段路线图：依赖与差异确认、Python API 迁移、验证加固、文档和状态收尾。","",""

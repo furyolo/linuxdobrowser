@@ -1,0 +1,65 @@
+{
+  "id": "TASK-001",
+  "title": "迁移 Python DrissionPage 4.2 调用",
+  "wave": 1,
+  "status": "completed",
+  "depends_on": [],
+  "purpose": "让 Python 自动浏览代码摆脱 DrissionPage 4.1 私有类型依赖，并按 4.2 已确认签名调整浏览器配置调用，同时保持运行时浏览策略不变。",
+  "read_first": [
+    ".workflow/roadmap.md",
+    ".workflow/.csv-wave/20260514-plan-P2-python-drissionpage-42-migration/tasks.csv",
+    ".workflow/scratch/20260514-plan-P1-drissionpage-42-dependency-api/drissionpage-42-api-checklist.md",
+    ".workflow/scratch/20260514-plan-P1-drissionpage-42-dependency-api/drissionpage-42-migration-checklist.md",
+    "autobrowser.py",
+    "main.py",
+    "use_system_user.py",
+    "mypy.ini",
+    "pyproject.toml"
+  ],
+  "files": {
+    "owned": ["autobrowser.py", "main.py"],
+    "read_only": [
+      "use_system_user.py",
+      "mypy.ini",
+      "pyproject.toml",
+      "uv.lock",
+      ".workflow/roadmap.md",
+      ".workflow/scratch/20260514-plan-P1-drissionpage-42-dependency-api/drissionpage-42-api-checklist.md",
+      ".workflow/scratch/20260514-plan-P1-drissionpage-42-dependency-api/drissionpage-42-migration-checklist.md"
+    ]
+  },
+  "steps": [
+    {
+      "name": "移除私有 MixTab 类型依赖",
+      "action": "删除 from DrissionPage._pages.mix_tab import MixTab，把 wait_for_new_topics()、is_bottom_of_page()、human_like_scroll()、process_topic() 中的 Union[MixTab, Any] 改为本地 Protocol/Any 组合。推荐用 Protocol 描述实际使用到的 scroll、wait、run_js()、close() 能力；对动态 DOM element 链保留局部 Any。"
+    },
+    {
+      "name": "保持主题处理运行时行为",
+      "action": "保留 link_ele.click.middle()、new_tab.wait.eles_loaded()、run_js()、scroll.up/down()、close() 的调用路径；不要在 Phase 2 因真实行为未 smoke 而改写打开标签页策略。"
+    },
+    {
+      "name": "调整 Edge 浏览器配置",
+      "action": "在 main.py 中把 Edge 分支改为 ChromiumOptions().set_browser_path(edge=True)；115 浏览器、豆包浏览器等非 Edge 路径继续使用 set_browser_path(path)。保留 browser.new_tab('https://linux.do/')，不新增 hidden 参数。"
+    },
+    {
+      "name": "确认 use_system_user 边界",
+      "action": "只读取并确认 use_system_user.py 仍是 ChromiumOptions().use_system_user_path().save() 链式调用；本任务不执行该脚本，不改变保存路径。"
+    }
+  ],
+  "convergence": {
+    "criteria": [
+      "$matches = Select-String -Path autobrowser.py -Pattern 'DrissionPage\\._pages|from DrissionPage\\._|\\bMixTab\\b' -ErrorAction SilentlyContinue; if ($matches) { $matches; throw 'autobrowser.py 仍存在私有 DrissionPage 类型依赖' }",
+      "Select-String -Path autobrowser.py -Pattern 'Protocol'",
+      "Select-String -Path main.py -Pattern 'set_browser_path\\(\\s*edge\\s*=\\s*True\\s*\\)'",
+      "Select-String -Path main.py -Pattern 'set_browser_path\\(\\s*path\\s*\\)'",
+      "Select-String -Path main.py -Pattern \"browser\\.new_tab\\('https://linux.do/'\\)\"",
+      "Select-String -Path use_system_user.py -Pattern 'use_system_user_path\\(\\)\\.save\\(\\)'"
+    ]
+  },
+  "notes": [
+    "本任务不新增依赖。",
+    "不改变随机延迟、3% 向上滚动/长停顿、60 秒滚动上限、Semaphore(3) 和主题加载轮询。",
+    "click.middle() 的真实新标签页返回行为留到 Phase 3 smoke 验证；Phase 2 只保持现有调用并消除不兼容类型导入。",
+    "如执行前发现 autobrowser.py 或 main.py 已有未合并改动，先阅读并顺着现有改动做最小迁移，不覆盖无关内容。"
+  ]
+}

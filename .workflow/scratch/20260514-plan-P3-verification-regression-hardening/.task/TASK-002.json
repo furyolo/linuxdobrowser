@@ -1,0 +1,55 @@
+{
+  "id": "TASK-002",
+  "title": "执行 userscript Node 回归",
+  "wave": 2,
+  "status": "completed",
+  "depends_on": [],
+  "purpose": "确认 DrissionPage 迁移没有误伤无关 userscript，保留既有 Node 语法检查和内置测试结果。",
+  "read_first": [
+    ".workflow/roadmap.md",
+    ".workflow/.csv-wave/20260514-execute-P2-python-drissionpage-42-migration/context.md",
+    ".workflow/specs/test-conventions.md",
+    "userscripts/flowreader.user.js",
+    "userscripts/tests/flowreader.user.test.js"
+  ],
+  "files": {
+    "owned": [
+      ".workflow/scratch/20260514-plan-P3-verification-regression-hardening/phase3-userscript-regression-notes.md"
+    ],
+    "read_only": [
+      "userscripts/flowreader.user.js",
+      "userscripts/tests/flowreader.user.test.js",
+      ".workflow/specs/test-conventions.md"
+    ]
+  },
+  "steps": [
+    {
+      "name": "运行 userscript 语法检查",
+      "action": "运行 node --check userscripts/flowreader.user.js。"
+    },
+    {
+      "name": "运行 Node 内置测试",
+      "action": "运行 node --test userscripts/tests/flowreader.user.test.js。"
+    },
+    {
+      "name": "记录回归结果",
+      "action": "生成 phase3-userscript-regression-notes.md，记录命令、退出结果、失败输出和是否与 DrissionPage 迁移相关。"
+    },
+    {
+      "name": "保持范围边界",
+      "action": "如果 Node 回归失败，先记录失败；只有失败与本次迁移直接相关时才做最小修复，否则不要修改 userscript。"
+    }
+  ],
+  "convergence": {
+    "criteria": [
+      "node --check userscripts/flowreader.user.js",
+      "node --test userscripts/tests/flowreader.user.test.js",
+      "Test-Path .workflow/scratch/20260514-plan-P3-verification-regression-hardening/phase3-userscript-regression-notes.md",
+      "Select-String -Path .workflow/scratch/20260514-plan-P3-verification-regression-hardening/phase3-userscript-regression-notes.md -Pattern 'node --check|node --test|userscript|result'"
+    ]
+  },
+  "notes": [
+    "userscript 不依赖 DrissionPage；本任务是未误伤回归验证。",
+    "不引入新的 JS 测试框架。"
+  ]
+}

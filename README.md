@@ -22,6 +22,10 @@ LinuxDoBrowser 是一个自动化浏览 linux.do 论坛的 Python 工具。
    ```bash
    uv sync
    ```
+   DrissionPage 4.2 当前使用 beta/pre-release 版本，本项目依赖约束为 `DrissionPage >=4.2.0b3,<4.3`。如果重新解析依赖时未自动选择预发布版本，可使用：
+   ```bash
+   uv sync --pre
+   ```
 
 ## 使用方法
 
@@ -34,17 +38,27 @@ LinuxDoBrowser 是一个自动化浏览 linux.do 论坛的 Python 工具。
 
 3. 程序将自动打开 linux.do 网站,加载主题并模拟浏览行为。
 
+真实浏览器运行需要本机浏览器路径可用，并且浏览器配置中具备访问 linux.do 所需的登录态。
+
 ## 配置
 
 如果您希望使用系统用户配置文件运行浏览器,可以执行以下命令:
 ```bash
 uv run use_system_user.py
 ```
+该命令会调用 DrissionPage 的 `use_system_user_path().save()`，会写入本机 DrissionPage 配置。
 
 ## 依赖
 
 - Python 3.13+
-- DrissionPage 4.1.0.2+
+- DrissionPage >=4.2.0b3,<4.3
+
+## DrissionPage 4.2 迁移状态
+
+- 当前本地验证版本：DrissionPage `4.2.0b3`。
+- Edge 真实浏览器 smoke 已通过：`"edge" | uv run main.py --mode short --num 1 --browser single`。
+- userscript 回归已通过：`node --check userscripts/flowreader.user.js` 和 `node --test userscripts/tests/flowreader.user.test.js`，结果为 `7 pass, 0 fail`。
+- DrissionPage 4.2 仍按 beta/pre-release 风险维护；后续依赖重解析或浏览链路变更后，应重新运行轻量检查，必要时再执行真实浏览器 smoke。
 
 ## 命令行参数
 

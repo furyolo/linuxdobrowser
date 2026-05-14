@@ -1,0 +1,4 @@
+id,title,wave,status,findings,files_modified,tests_passed,error
+TASK-001,同步最终用户与维护文档,1,completed,"README、CLAUDE、project.md 已同步 DrissionPage 4.2.0b3、Phase 3 Edge smoke 通过、userscript 7 pass 0 fail 和 use_system_user 写配置边界。","README.md; CLAUDE.md; .workflow/project.md",true,
+TASK-002,固化 specs 与迁移知识,2,completed,"quality/learnings/debug specs 已固化最终验证命令、beta 风险、私有模块禁用和故障诊断分层。",".workflow/specs/quality-rules.md; .workflow/specs/learnings.md; .workflow/specs/debug-notes.md",true,
+TASK-003,执行最终审计与状态收口,3,completed,"轻量验证通过；final summary、roadmap、state 和执行 artifact 已完成。",".workflow/scratch/20260514-plan-P4-docs-specs-wrap-up/final-migration-summary.md; .workflow/roadmap.md; .workflow/state.json",true,

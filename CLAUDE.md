@@ -18,9 +18,10 @@ LinuxDoBrowser is a Python automation tool for browsing the linux.do forum using
 ## Common Commands
 ### Development Setup
 - Install dependencies: `uv sync`
+- Install dependencies with pre-release resolution if needed: `uv sync --pre`
 - Run type checking: `uv run mypy .`
 - Run main application: `uv run main.py`
-- Configure system user profile: `uv run use_system_user.py`
+- Configure system user profile: `uv run use_system_user.py` (writes local DrissionPage config)
 - Add new dependency: `uv add <package-name>`
 
 ### Browser Modes
@@ -31,6 +32,22 @@ LinuxDoBrowser is a Python automation tool for browsing the linux.do forum using
 ### Browser Selection
 - Single browser mode (interactive): `uv run main.py --browser single`
 - All browsers mode (sequential): `uv run main.py --browser all`
+
+### DrissionPage 4.2 Verification
+- Current verified version: DrissionPage `4.2.0b3`
+- No-side-effect checks passed: `uv lock --check` and `uv run mypy .`
+- Phase 3 real browser smoke passed with Edge: `"edge" | uv run main.py --mode short --num 1 --browser single`
+- Phase 3 userscript regression passed: `node --check userscripts/flowreader.user.js` and `node --test userscripts/tests/flowreader.user.test.js` (`7 pass, 0 fail`)
+- `uv run use_system_user.py` writes local DrissionPage config and should only be run intentionally
+
+## DrissionPage 4.2 Migration Notes
+- 当前依赖为 DrissionPage 4.2 beta：`DrissionPage >=4.2.0b3,<4.3`，维护时需要保留 beta API 变化风险。
+- 业务代码禁止导入 `DrissionPage._pages.*` 私有模块；需要类型约束时使用公开 API、本地 `Protocol` 或局部 `Any`。
+- `MixTab` 功能已合并到 Chromium tab 方向，当前代码不再依赖 `MixTab` 类型。
+- `ChromiumOptions.set_browser_path(edge=True)` 仅用于 Edge 分支，115 浏览器和豆包浏览器继续使用显式路径。
+- `Chromium.new_tab()` 已支持 `hidden` 参数，但当前主流程仍保留 `browser.new_tab('https://linux.do/')`，不改变标签页打开策略。
+- Phase 3 已验证 `click.middle()` 返回的新标签页可继续执行 wait、scroll、close 和退出流程。
+- userscript 不属于 DrissionPage 迁移面，但 Phase 3 已用 Node 语法和内置测试确认未误伤。
 
 ## Architecture Notes
 ### Core Design Patterns

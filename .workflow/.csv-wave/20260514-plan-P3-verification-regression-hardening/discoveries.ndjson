@@ -1,0 +1,3 @@
+{"ts":"2026-05-14T21:13:58+08:00","worker":"E1","type":"test_command","data":{"command":"echo edge | uv run main.py --mode short --num 1 --browser single","scope":"Phase 3 true browser smoke","framework":"DrissionPage"}}
+{"ts":"2026-05-14T21:13:58+08:00","worker":"E2","type":"test_command","data":{"command":"node --test userscripts/tests/flowreader.user.test.js","scope":"userscript regression","framework":"node:test"}}
+{"ts":"2026-05-14T21:13:58+08:00","worker":"E3","type":"risk_factor","data":{"risk":"use_system_user.py writes local DrissionPage config","severity":"medium","mitigation":"do not run automatically in Phase 3 plan; record need for separate confirmation","affected_files":["use_system_user.py"]}}

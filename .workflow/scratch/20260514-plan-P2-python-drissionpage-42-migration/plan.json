@@ -1,0 +1,131 @@
+{
+  "id": "PLAN-P2-python-drissionpage-42-migration",
+  "title": "Phase 2：Python DrissionPage 4.2 调用迁移",
+  "phase": "Phase 2",
+  "goal": "让现有 Python 自动浏览逻辑使用 DrissionPage 4.2 兼容写法，同时把真实浏览器 smoke 与 userscript 回归保留到 Phase 3。",
+  "status": "completed",
+  "created_at": "2026-05-14T20:53:55+08:00",
+  "updated_at": "2026-05-14T20:53:55+08:00",
+  "output_dir": ".workflow/scratch/20260514-plan-P2-python-drissionpage-42-migration",
+  "task_dir": ".workflow/scratch/20260514-plan-P2-python-drissionpage-42-migration/.task",
+  "task_count": 3,
+  "complexity": "medium",
+  "scope": {
+    "in": [
+      "迁移 Python 代码中与 DrissionPage 4.2 不兼容或高风险的调用与类型标注。",
+      "移除业务代码对 DrissionPage 私有模块路径的依赖。",
+      "在 main.py 中仅对 Edge 使用 set_browser_path(edge=True)，其它浏览器继续走显式路径。",
+      "执行无真实浏览器副作用的验证：lock 一致性、import/signature probe、mypy、静态私有导入检查。",
+      "同步 README、CLAUDE 和 workflow specs 中的 DrissionPage 4.2 beta、禁止私有模块和验证边界说明。"
+    ],
+    "out": [
+      "不执行 uv run main.py --mode short --num 1 真实登录态浏览 smoke。",
+      "不执行 userscript Node 回归；node --check 与 node --test 留到 Phase 3 验证迁移未误伤。",
+      "不运行 uv run use_system_user.py，避免 ChromiumOptions().use_system_user_path().save() 写入本机配置。",
+      "不新增依赖，不改变随机延迟、滚动策略、Semaphore(3)、主题加载轮询和打开主题标签页的策略。",
+      "不宣称真实浏览器 smoke 已通过。"
+    ]
+  },
+  "source_context": [
+    ".workflow/roadmap.md Phase 2：Python DrissionPage 调用迁移。",
+    ".workflow/.csv-wave/20260514-plan-P2-python-drissionpage-42-migration/tasks.csv E1-E4 探索结果。",
+    ".workflow/scratch/20260514-plan-P1-drissionpage-42-dependency-api/drissionpage-42-api-checklist.md：DrissionPage 4.2.0b3 签名探测与 MixTab 风险。",
+    ".workflow/scratch/20260514-plan-P1-drissionpage-42-dependency-api/drissionpage-42-migration-checklist.md：文件级迁移边界。",
+    "DrissionPage 4.2 官方文档：https://www.drissionpage.cn/features/4.2"
+  ],
+  "waves": [
+    {
+      "wave": 1,
+      "name": "Python 调用兼容迁移",
+      "tasks": ["TASK-001"],
+      "depends_on": []
+    },
+    {
+      "wave": 2,
+      "name": "无副作用静态验证",
+      "tasks": ["TASK-002"],
+      "depends_on": ["TASK-001"]
+    },
+    {
+      "wave": 3,
+      "name": "文档与 specs 同步",
+      "tasks": ["TASK-003"],
+      "depends_on": ["TASK-002"]
+    }
+  ],
+  "tasks": [
+    {
+      "id": "TASK-001",
+      "title": "迁移 Python DrissionPage 4.2 调用",
+      "summary": "移除 autobrowser.py 的私有 MixTab 类型导入，使用本地 Protocol/Any 保留动态 DrissionPage 调用；main.py 仅 Edge 改用 edge=True，其他浏览器保留显式路径；use_system_user.py 只确认签名边界，不执行保存脚本。",
+      "depends_on": [],
+      "status": "completed"
+    },
+    {
+      "id": "TASK-002",
+      "title": "执行 Phase 2 无真实浏览器验证",
+      "summary": "运行 lock、导入/签名、mypy 和静态私有导入检查；记录 Phase 2 验证结果，但不启动真实浏览器、不执行登录态 smoke、不运行 userscript Node 回归。",
+      "depends_on": ["TASK-001"],
+      "status": "completed"
+    },
+    {
+      "id": "TASK-003",
+      "title": "同步 4.2 迁移文档与 specs",
+      "summary": "更新 README、CLAUDE 和 workflow specs，固化 DrissionPage 4.2 beta、禁止私有模块、Phase 2/Phase 3 验证边界和 userscript 不属于本阶段迁移面的说明。",
+      "depends_on": ["TASK-002"],
+      "status": "completed"
+    }
+  ],
+  "convergence": {
+    "criteria": [
+      "$matches = Select-String -Path autobrowser.py,main.py,use_system_user.py -Pattern 'DrissionPage\\._pages|from DrissionPage\\._|\\bMixTab\\b' -ErrorAction SilentlyContinue; if ($matches) { $matches; throw '仍存在 DrissionPage 私有模块或 MixTab 引用' }",
+      "Select-String -Path autobrowser.py -Pattern 'Protocol'",
+      "Select-String -Path main.py -Pattern 'set_browser_path\\(\\s*edge\\s*=\\s*True\\s*\\)'",
+      "Select-String -Path main.py -Pattern 'set_browser_path\\(\\s*path\\s*\\)'",
+      "Select-String -Path main.py -Pattern \"browser\\.new_tab\\('https://linux.do/'\\)\"",
+      "uv lock --check",
+      "uv run python -c \"import inspect, importlib.metadata as md; from DrissionPage import Chromium, ChromiumOptions; print('DrissionPage version:', md.version('DrissionPage')); print('set_browser_path:', inspect.signature(ChromiumOptions.set_browser_path)); print('new_tab:', inspect.signature(Chromium.new_tab)); assert 'edge' in str(inspect.signature(ChromiumOptions.set_browser_path)); assert 'hidden' in str(inspect.signature(Chromium.new_tab)); assert callable(getattr(ChromiumOptions(), 'use_system_user_path'))\"",
+      "uv run mypy .",
+      "Select-String -Path README.md -Pattern 'DrissionPage\\s+>=4\\.2\\.0b3,<4\\.3'",
+      "Select-String -Path CLAUDE.md -Pattern 'DrissionPage\\._pages|私有模块'",
+      "Select-String -Path .workflow/specs/coding-conventions.md,.workflow/specs/quality-rules.md -Pattern 'DrissionPage\\._pages|真实浏览器 smoke|Phase 3'"
+    ],
+    "artifacts": [
+      "autobrowser.py",
+      "main.py",
+      "README.md",
+      "CLAUDE.md",
+      ".workflow/specs/coding-conventions.md",
+      ".workflow/specs/quality-rules.md",
+      ".workflow/scratch/20260514-plan-P2-python-drissionpage-42-migration/phase2-verification-notes.md"
+    ]
+  },
+  "quality_check": {
+    "requirements_coverage": "pass",
+    "dependency_correctness": "pass",
+    "collision_safety": "pass",
+    "task_grouping": "pass",
+    "readiness_gate": "pass",
+    "notes": [
+      "3 个任务按执行顺序串联，依赖真实存在。",
+      "每个任务都有 read_first 与可命令验证的 convergence criteria。",
+      "Phase 2 明确排除真实浏览器 smoke 与 userscript Node 回归，避免误触本机环境和登录态。"
+    ]
+  },
+  "confidence": {
+    "overall": 0.86,
+    "requirements_coverage": 0.9,
+    "task_quality": 0.86,
+    "dependency_correctness": 0.9,
+    "estimation_accuracy": 0.82,
+    "collision_safety": 0.84,
+    "weakest_dimension": "estimation_accuracy",
+    "rationale": "代码触点少但涉及 DrissionPage 4.2 beta 和真实浏览器行为，Phase 2 计划已把不可无副作用验证的部分延后到 Phase 3。"
+  },
+  "references": [
+    "https://www.drissionpage.cn/features/4.2",
+    "https://www.drissionpage.cn/dp40docs/versions/4x/",
+    ".workflow/scratch/20260514-plan-P1-drissionpage-42-dependency-api/drissionpage-42-api-checklist.md",
+    ".workflow/scratch/20260514-plan-P1-drissionpage-42-dependency-api/drissionpage-42-migration-checklist.md"
+  ]
+}

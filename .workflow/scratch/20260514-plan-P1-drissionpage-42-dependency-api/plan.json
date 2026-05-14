@@ -1,0 +1,94 @@
+{
+  "id": "PLAN-P1-drissionpage-42-dependency-api",
+  "title": "Phase 1：DrissionPage 4.2 依赖与 API 差异确认",
+  "phase": "Phase 1",
+  "goal": "把升级到 DrissionPage 4.2 转化为明确、可验证、可回退的工程约束，为后续代码迁移提供依赖版本、API 探测结果和修改清单。",
+  "status": "completed",
+  "created_at": "2026-05-14T19:56:23+08:00",
+  "output_dir": ".workflow/scratch/20260514-plan-P1-drissionpage-42-dependency-api",
+  "task_dir": ".workflow/scratch/20260514-plan-P1-drissionpage-42-dependency-api/.task",
+  "task_count": 2,
+  "source_context": [
+    ".workflow/roadmap.md Phase 1",
+    "DrissionPage 4.2 官方文档：4.2 为测试版，MixTab 功能合并到 ChromiumTab，set_browser_path(edge=True)，new_tab(hidden=True)，click(wait_stop) 默认 False。",
+    "探索结果：pyproject.toml 仍声明 drissionpage>=4.1.1.1，uv.lock 已锁 drissionpage 4.2.0b3。",
+    "探索结果：autobrowser.py 的 DrissionPage._pages.mix_tab.MixTab 是最高风险点，但 Phase 1 只确认，不执行迁移。"
+  ],
+  "scope": {
+    "in": [
+      "确认并固化 DrissionPage 4.2 beta 依赖约束。",
+      "重新生成或校验 uv.lock，使 root metadata 与 pyproject.toml 一致。",
+      "执行无破坏导入、配置对象和签名探测。",
+      "形成 API 差异矩阵、后续代码迁移清单和 beta 回退策略。"
+    ],
+    "out": [
+      "不迁移 main.py、autobrowser.py、use_system_user.py 的业务调用。",
+      "不打开 linux.do 做真实登录态浏览 smoke。",
+      "不修改 userscript、不新增域名、不引入新框架或新依赖。",
+      "不改变随机延迟、滚动策略、并发数和浏览器选择策略。"
+    ]
+  },
+  "waves": [
+    {
+      "wave": 1,
+      "name": "依赖约束与 lock 一致性",
+      "tasks": [
+        "TASK-001"
+      ],
+      "depends_on": []
+    },
+    {
+      "wave": 2,
+      "name": "API 探测与迁移清单",
+      "tasks": [
+        "TASK-002"
+      ],
+      "depends_on": [
+        "TASK-001"
+      ]
+    }
+  ],
+  "tasks": [
+    {
+      "id": "TASK-001",
+      "title": "固化 DrissionPage 4.2 beta 依赖约束",
+      "summary": "将直接依赖从宽泛 4.1+ 约束收紧为明确的 4.2 beta 范围，并让 uv.lock 的 root metadata 与包版本一致。",
+      "depends_on": [],
+      "status": "completed"
+    },
+    {
+      "id": "TASK-002",
+      "title": "执行 4.2 API 探测并产出迁移清单",
+      "summary": "在已锁定的 4.2 环境中做导入、配置和签名探测，记录公开 Tab 类型、私有 MixTab 风险、click/new_tab/wait/scroll/run_js/close/use_system_user_path 的后续迁移判断。",
+      "depends_on": [
+        "TASK-001"
+      ],
+      "status": "completed"
+    }
+  ],
+  "convergence": {
+    "criteria": [
+      "Select-String -Path pyproject.toml -Pattern '\"drissionpage>=4\\.2\\.0b3,<4\\.3\"'",
+      "Select-String -Path uv.lock -Pattern 'name = \"drissionpage\"'",
+      "Select-String -Path uv.lock -Pattern 'version = \"4\\.2\\.0b3\"'",
+      "Select-String -Path uv.lock -Pattern 'specifier = \">=4\\.2\\.0b3,<4\\.3\"'",
+      "uv lock --check",
+      "uv run python -c \"import inspect, importlib.metadata as md; from DrissionPage import Chromium, ChromiumOptions; print('DrissionPage version:', md.version('DrissionPage')); print('set_browser_path:', inspect.signature(ChromiumOptions.set_browser_path)); print('new_tab:', inspect.signature(Chromium.new_tab)); assert 'edge' in str(inspect.signature(ChromiumOptions.set_browser_path)); assert 'hidden' in str(inspect.signature(Chromium.new_tab)); assert callable(getattr(ChromiumOptions(), 'use_system_user_path'))\"",
+      "Test-Path .workflow/scratch/20260514-plan-P1-drissionpage-42-dependency-api/drissionpage-42-api-checklist.md",
+      "Select-String -Path .workflow/scratch/20260514-plan-P1-drissionpage-42-dependency-api/drissionpage-42-api-checklist.md -Pattern 'DrissionPage version:|Tab type decision:|MixTab private import:|click.middle return:|use_system_user_path:|Rollback strategy:'",
+      "Select-String -Path .workflow/scratch/20260514-plan-P1-drissionpage-42-dependency-api/drissionpage-42-migration-checklist.md -Pattern 'autobrowser.py|main.py|use_system_user.py|README.md|CLAUDE.md'"
+    ],
+    "artifacts": [
+      "pyproject.toml",
+      "uv.lock",
+      ".workflow/scratch/20260514-plan-P1-drissionpage-42-dependency-api/drissionpage-42-api-checklist.md",
+      ".workflow/scratch/20260514-plan-P1-drissionpage-42-dependency-api/drissionpage-42-migration-checklist.md"
+    ]
+  },
+  "completed_at": "2026-05-14T20:30:00+08:00",
+  "references": [
+    "https://www.drissionpage.cn/features/4.2",
+    "https://www.drissionpage.cn/dp40docs/versions/4x/",
+    "https://drissionpage.cn/get_start/before_start"
+  ]
+}

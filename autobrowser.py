@@ -4,8 +4,7 @@ import random
 import sys
 import time
 
-from DrissionPage._pages.mix_tab import MixTab
-from typing import Any, Union
+from typing import Any, Protocol
 
 logging.basicConfig(
     format = "%(asctime)s %(levelname)s:%(name)s: %(message)s",
@@ -15,8 +14,33 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
-# 定义tab参数可以接受的类型
-def wait_for_new_topics(tab: Union[MixTab, Any], end_topic_id: str) -> None:
+class ScrollLike(Protocol):
+    """DrissionPage 4.2 不公开稳定 Tab 类型，这里只描述实际使用的滚动能力。"""
+
+    def to_bottom(self) -> Any:
+        ...
+
+    def up(self, pixel: int) -> Any:
+        ...
+
+    def down(self, pixel: int) -> Any:
+        ...
+
+
+class BrowserTabLike(Protocol):
+    """避免依赖 DrissionPage 私有模块路径。"""
+
+    scroll: ScrollLike
+
+    def run_js(self, script: str, *args: Any, **kwargs: Any) -> Any:
+        ...
+
+    def close(self, *args: Any, **kwargs: Any) -> Any:
+        ...
+
+
+# 定义 tab 参数需要具备的最小能力
+def wait_for_new_topics(tab: BrowserTabLike, end_topic_id: str) -> None:
     # end_topic_id转为数字
     current_number = int(end_topic_id)
     
@@ -24,7 +48,7 @@ def wait_for_new_topics(tab: Union[MixTab, Any], end_topic_id: str) -> None:
     # 使用正确的API访问actions属性
     tab.scroll.to_bottom()
     
-def is_bottom_of_page(tab: Union[MixTab, Any]) -> bool:
+def is_bottom_of_page(tab: BrowserTabLike) -> bool:
     # 获取当前滚动位置
     current_scroll: int = tab.run_js('return window.pageYOffset')
     # 获取页面总高度
@@ -35,7 +59,7 @@ def is_bottom_of_page(tab: Union[MixTab, Any]) -> bool:
     # 如果当前滚动位置加上视窗高度等于或接近页面总高度，则认为到达底部
     return (current_scroll + viewport_height) >= (total_height - 100)  # 允许100像素的误差
 
-async def human_like_scroll(tab: Union[MixTab, Any]) -> None:
+async def human_like_scroll(tab: BrowserTabLike) -> None:
     # 随机滚动距离，范围可以根据实际情况调整
     scroll_distance: int = random.randint(200, 500)
         
@@ -54,7 +78,7 @@ async def human_like_scroll(tab: Union[MixTab, Any]) -> None:
     if random.random() < 0.03:
         await asyncio.sleep(random.uniform(2, 5))
 
-async def process_topic(topic: Union[MixTab, Any], n: int, semaphore: asyncio.Semaphore) -> None:
+async def process_topic(topic: Any, n: int, semaphore: asyncio.Semaphore) -> None:
     async with semaphore:
         num_posts: str = str(topic('.badge-posts').text)
         if 'k' in num_posts.lower() or int(num_posts) >= 1:

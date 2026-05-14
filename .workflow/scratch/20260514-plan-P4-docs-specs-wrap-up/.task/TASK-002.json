@@ -1,0 +1,53 @@
+{
+  "id": "TASK-002",
+  "title": "固化 specs 与迁移知识",
+  "wave": 2,
+  "status": "completed",
+  "depends_on": ["TASK-001"],
+  "purpose": "把 Phase 1-3 中形成的 DrissionPage 4.2 维护约束、最终验证结果和配置写入边界固化为 workflow specs/learning/debug 条目。",
+  "read_first": [
+    ".workflow/specs/coding-conventions.md",
+    ".workflow/specs/quality-rules.md",
+    ".workflow/specs/learnings.md",
+    ".workflow/specs/debug-notes.md",
+    ".workflow/scratch/20260514-plan-P3-verification-regression-hardening/phase3-verification-report.md",
+    ".workflow/.csv-wave/20260514-execute-P3-verification-regression-hardening/context.md"
+  ],
+  "files": {
+    "owned": [
+      ".workflow/specs/coding-conventions.md",
+      ".workflow/specs/quality-rules.md",
+      ".workflow/specs/learnings.md",
+      ".workflow/specs/debug-notes.md"
+    ],
+    "read_only": [
+      ".workflow/scratch/20260514-plan-P3-verification-regression-hardening/phase3-verification-report.md"
+    ]
+  },
+  "steps": [
+    {
+      "name": "补充最终验证规则",
+      "action": "在 quality-rules 或 test-conventions 中固化 Phase 4 后的轻量验证命令：uv lock --check、uv run mypy .、node --check、node --test；真实浏览器 smoke 只在迁移或浏览链路改动时运行。"
+    },
+    {
+      "name": "固化 4.2 beta 风险和回退知识",
+      "action": "在 learnings/debug-notes 中记录 DrissionPage 4.2.0b3 已验证事实、beta 版本敏感性、失败时区分代码回归/浏览器 profile/登录态/网络/站点结构。"
+    },
+    {
+      "name": "确认私有模块规则仍存在",
+      "action": "保留并必要时补强 coding-conventions 中禁止业务代码导入 DrissionPage._pages.* 的规则。所有新增 spec 必须使用闭合 <spec-entry> 格式。"
+    }
+  ],
+  "convergence": {
+    "criteria": [
+      "Select-String -Path .workflow/specs/coding-conventions.md -Pattern 'DrissionPage\\._pages|私有模块|Protocol|Any'",
+      "Select-String -Path .workflow/specs/quality-rules.md -Pattern '4\\.2\\.0b3|uv lock --check|uv run mypy \\.|node --check|node --test|真实浏览器 smoke'",
+      "Select-String -Path .workflow/specs/learnings.md -Pattern '4\\.2\\.0b3|Phase 3|Edge|7 pass|beta'",
+      "Select-String -Path .workflow/specs/debug-notes.md -Pattern 'use_system_user|DrissionPage 配置|登录态|站点结构|profile'"
+    ]
+  },
+  "notes": [
+    "spec 写入必须使用 <spec-entry ...>...</spec-entry> 闭合标签。",
+    "不删除历史 spec。"
+  ]
+}

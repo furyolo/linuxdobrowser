@@ -1,0 +1,71 @@
+{
+  "id": "TASK-003",
+  "title": "同步 4.2 迁移文档与 specs",
+  "wave": 3,
+  "status": "completed",
+  "depends_on": ["TASK-002"],
+  "purpose": "把 Phase 2 的代码迁移结果和验证边界同步到用户文档与项目 specs，避免后续维护继续依赖 DrissionPage 私有模块或误把真实 smoke 视为已完成。",
+  "read_first": [
+    ".workflow/roadmap.md",
+    ".workflow/.csv-wave/20260514-plan-P2-python-drissionpage-42-migration/tasks.csv",
+    ".workflow/scratch/20260514-plan-P1-drissionpage-42-dependency-api/drissionpage-42-api-checklist.md",
+    ".workflow/scratch/20260514-plan-P1-drissionpage-42-dependency-api/drissionpage-42-migration-checklist.md",
+    ".workflow/scratch/20260514-plan-P2-python-drissionpage-42-migration/phase2-verification-notes.md",
+    "README.md",
+    "CLAUDE.md",
+    ".workflow/specs/coding-conventions.md",
+    ".workflow/specs/quality-rules.md",
+    "pyproject.toml"
+  ],
+  "files": {
+    "owned": [
+      "README.md",
+      "CLAUDE.md",
+      ".workflow/specs/coding-conventions.md",
+      ".workflow/specs/quality-rules.md"
+    ],
+    "read_only": [
+      "pyproject.toml",
+      "uv.lock",
+      "autobrowser.py",
+      "main.py",
+      "use_system_user.py",
+      ".workflow/scratch/20260514-plan-P2-python-drissionpage-42-migration/phase2-verification-notes.md"
+    ]
+  },
+  "steps": [
+    {
+      "name": "更新 README 依赖与使用边界",
+      "action": "把依赖说明从 DrissionPage 4.1.0.2+ 更新为 DrissionPage >=4.2.0b3,<4.3，补充 4.2 beta/pre-release 与真实浏览器 smoke 需要本机浏览器路径和登录态。保留现有 uv run main.py、uv run use_system_user.py 使用方式，但说明后者会写入 DrissionPage 配置。"
+    },
+    {
+      "name": "更新 CLAUDE 维护说明",
+      "action": "记录 DrissionPage 4.2 beta 风险、禁止业务代码导入 DrissionPage._pages.* 私有模块、Phase 2 的无副作用验证命令和 Phase 3 的真实 smoke/userscript 回归边界。"
+    },
+    {
+      "name": "固化 specs 规则",
+      "action": "在 .workflow/specs/coding-conventions.md 增加 DrissionPage 类型约束规则：业务代码用公开 API、Protocol 或局部 Any，不导入私有模块；在 .workflow/specs/quality-rules.md 增加 Phase 2/Phase 3 验证分层：Python 改动运行 uv run mypy .，真实浏览器 smoke 与 userscript Node 回归在 Phase 3 执行。"
+    },
+    {
+      "name": "避免过度声明",
+      "action": "文档只说明 Phase 2 已完成静态/类型验证和迁移边界，不声明 uv run main.py --mode short --num 1 或 userscript Node 回归已通过。"
+    }
+  ],
+  "convergence": {
+    "criteria": [
+      "Select-String -Path README.md -Pattern 'DrissionPage\\s+>=4\\.2\\.0b3,<4\\.3'",
+      "Select-String -Path README.md -Pattern 'beta|预发布|pre-release|登录态|use_system_user'",
+      "Select-String -Path CLAUDE.md -Pattern '4\\.2 beta|4\\.2.*测试版'",
+      "Select-String -Path CLAUDE.md -Pattern 'DrissionPage\\._pages|私有模块'",
+      "Select-String -Path CLAUDE.md -Pattern 'uv run mypy \\.|uv run main.py --mode short --num 1|userscript'",
+      "Select-String -Path .workflow/specs/coding-conventions.md -Pattern 'DrissionPage\\._pages|私有模块|Protocol|Any'",
+      "Select-String -Path .workflow/specs/quality-rules.md -Pattern 'uv run mypy \\.|真实浏览器 smoke|Phase 3|userscript'",
+      "$matches = Select-String -Path README.md,CLAUDE.md,.workflow/specs/coding-conventions.md,.workflow/specs/quality-rules.md -Pattern 'smoke 已通过|真实浏览器.*已通过|node.*已通过' -ErrorAction SilentlyContinue; if ($matches) { $matches; throw '文档不应宣称 Phase 3 验证已通过' }"
+    ]
+  },
+  "notes": [
+    "spec 写入必须使用既有 <spec-entry ...>...</spec-entry> 闭合标签格式。",
+    "代码注释和文档使用中文；CLAUDE.md 可保持原有结构，但新增维护约束需要清晰说明。",
+    "userscript 不属于 DrissionPage 迁移面，本任务只记录 Phase 3 可运行 Node 检查确认未误伤。"
+  ]
+}

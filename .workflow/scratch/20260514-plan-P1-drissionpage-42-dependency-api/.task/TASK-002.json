@@ -1,0 +1,66 @@
+{
+  "id": "TASK-002",
+  "title": "执行 4.2 API 探测并产出迁移清单",
+  "wave": 2,
+  "status": "completed",
+  "depends_on": [
+    "TASK-001"
+  ],
+  "purpose": "在已明确锁定的 DrissionPage 4.2 环境中，用无破坏探测确认后续代码迁移需要改哪些点。",
+  "read_first": [
+    ".workflow/roadmap.md",
+    ".workflow/scratch/20260514-plan-P1-drissionpage-42-dependency-api/plan.json",
+    "main.py",
+    "autobrowser.py",
+    "use_system_user.py",
+    "README.md",
+    "CLAUDE.md"
+  ],
+  "files": {
+    "owned": [
+      ".workflow/scratch/20260514-plan-P1-drissionpage-42-dependency-api/drissionpage-42-api-checklist.md",
+      ".workflow/scratch/20260514-plan-P1-drissionpage-42-dependency-api/drissionpage-42-migration-checklist.md"
+    ],
+    "read_only": [
+      "main.py",
+      "autobrowser.py",
+      "use_system_user.py",
+      "README.md",
+      "CLAUDE.md"
+    ]
+  },
+  "steps": [
+    {
+      "name": "执行无破坏导入和签名探测",
+      "action": "运行 Python 一行命令，输出 DrissionPage 版本、ChromiumOptions.set_browser_path 签名、Chromium.new_tab 签名，并断言 edge、hidden、use_system_user_path 可用。"
+    },
+    {
+      "name": "探测公开 Tab 类型",
+      "action": "在不启动真实浏览器的前提下优先用 importlib 或 inspect 探测 DrissionPage 是否公开 ChromiumTab；无法确认时在清单中标记后续迁移采用 Protocol/Any。"
+    },
+    {
+      "name": "登记高风险行为",
+      "action": "把 click.middle 返回新 tab、wait.eles_loaded、scroll、run_js、close 等行为列入后续 Phase 2/3 验证清单，不在 Phase 1 改业务调用。"
+    },
+    {
+      "name": "写入清单",
+      "action": "生成 drissionpage-42-api-checklist.md 和 drissionpage-42-migration-checklist.md，记录 API 差异、文件级修改建议、回退策略和延期到 Phase 2/3 的验证项。"
+    }
+  ],
+  "convergence": {
+    "criteria": [
+      "uv run python -c \"import inspect, importlib.metadata as md; from DrissionPage import Chromium, ChromiumOptions; print('DrissionPage version:', md.version('DrissionPage')); print('set_browser_path:', inspect.signature(ChromiumOptions.set_browser_path)); print('new_tab:', inspect.signature(Chromium.new_tab)); assert 'edge' in str(inspect.signature(ChromiumOptions.set_browser_path)); assert 'hidden' in str(inspect.signature(Chromium.new_tab)); assert callable(getattr(ChromiumOptions(), 'use_system_user_path'))\"",
+      "Test-Path .workflow/scratch/20260514-plan-P1-drissionpage-42-dependency-api/drissionpage-42-api-checklist.md",
+      "Select-String -Path .workflow/scratch/20260514-plan-P1-drissionpage-42-dependency-api/drissionpage-42-api-checklist.md -Pattern 'DrissionPage version:|Tab type decision:|MixTab private import:|click.middle return:|use_system_user_path:|Rollback strategy:'",
+      "Test-Path .workflow/scratch/20260514-plan-P1-drissionpage-42-dependency-api/drissionpage-42-migration-checklist.md",
+      "Select-String -Path .workflow/scratch/20260514-plan-P1-drissionpage-42-dependency-api/drissionpage-42-migration-checklist.md -Pattern 'autobrowser.py|main.py|use_system_user.py|README.md|CLAUDE.md'"
+    ]
+  },
+  "notes": [
+    "Phase 1 不打开 linux.do 做真实登录态浏览 smoke。",
+    "userscript 不受 DrissionPage 影响，本任务不修改 userscripts。",
+    "如果 4.2 beta 的公开 API 探测失败，清单必须记录失败命令、版本和回退策略。"
+  ],
+  "completed_at": "2026-05-14T20:30:00+08:00",
+  "summary_path": ".workflow/scratch/20260514-plan-P1-drissionpage-42-dependency-api/.summaries/TASK-002-summary.md"
+}

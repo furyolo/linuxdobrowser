@@ -1,0 +1,4 @@
+id,status,findings,files_modified,tests_passed,error
+TASK-001,completed,"最终用户与维护文档已同步。","README.md; CLAUDE.md; .workflow/project.md",true,
+TASK-002,completed,"specs 与迁移知识已固化。",".workflow/specs/quality-rules.md; .workflow/specs/learnings.md; .workflow/specs/debug-notes.md",true,
+TASK-003,completed,"轻量验证和 workflow 状态收口已完成。",".workflow/scratch/20260514-plan-P4-docs-specs-wrap-up/final-migration-summary.md; .workflow/roadmap.md; .workflow/state.json",true,

@@ -1,0 +1,60 @@
+{
+  "id": "TASK-001",
+  "title": "固化 DrissionPage 4.2 beta 依赖约束",
+  "wave": 1,
+  "status": "completed",
+  "depends_on": [],
+  "purpose": "让项目依赖声明明确要求 DrissionPage 4.2 beta，并让 uv.lock 与 pyproject.toml 的 root metadata 一致。",
+  "read_first": [
+    ".workflow/roadmap.md",
+    ".workflow/.csv-wave/20260514-plan-P1-drissionpage-42-dependency-api/context.md",
+    "pyproject.toml",
+    "uv.lock",
+    "README.md"
+  ],
+  "files": {
+    "owned": [
+      "pyproject.toml",
+      "uv.lock"
+    ],
+    "read_only": [
+      ".workflow/roadmap.md",
+      "README.md",
+      "CLAUDE.md"
+    ]
+  },
+  "steps": [
+    {
+      "name": "确认当前锁定版本",
+      "action": "读取 uv.lock 中 drissionpage package version 与 root package metadata requires-dist。"
+    },
+    {
+      "name": "更新直接依赖约束",
+      "action": "将 pyproject.toml 的 DrissionPage 约束改为明确 4.2 beta 范围，推荐值为 drissionpage>=4.2.0b3,<4.3。"
+    },
+    {
+      "name": "重新计算 lock",
+      "action": "运行 uv lock --upgrade-package drissionpage --prerelease if-necessary-or-explicit；如本地 uv 版本不支持该参数，使用等价的 uv sync --prerelease if-necessary-or-explicit 后再确认 lock。"
+    },
+    {
+      "name": "校验 lock 一致性",
+      "action": "运行 uv lock --check，并确认 uv.lock 里的 package version 和 root requires-dist specifier 与 pyproject.toml 一致。"
+    }
+  ],
+  "convergence": {
+    "criteria": [
+      "Select-String -Path pyproject.toml -Pattern '\"drissionpage>=4\\.2\\.0b3,<4\\.3\"'",
+      "Select-String -Path uv.lock -Pattern 'name = \"drissionpage\"'",
+      "Select-String -Path uv.lock -Pattern 'version = \"4\\.2\\.0b3\"'",
+      "Select-String -Path uv.lock -Pattern 'specifier = \">=4\\.2\\.0b3,<4\\.3\"'",
+      "uv lock --check"
+    ]
+  },
+  "notes": [
+    "不新增依赖。",
+    "保留 Aliyun index 和 mypy dev 依赖。",
+    "若最新 4.2 beta 版本高于 4.2.0b3，应先记录 resolver 结果，再决定是否固定到 ==4.2.0b3。"
+  ],
+  "completed_at": "2026-05-14T20:30:00+08:00",
+  "summary_path": ".workflow/scratch/20260514-plan-P1-drissionpage-42-dependency-api/.summaries/TASK-001-summary.md"
+}

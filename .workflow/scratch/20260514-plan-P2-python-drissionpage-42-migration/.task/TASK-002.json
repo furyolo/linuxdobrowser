@@ -1,0 +1,70 @@
+{
+  "id": "TASK-002",
+  "title": "执行 Phase 2 无真实浏览器验证",
+  "wave": 2,
+  "status": "completed",
+  "depends_on": ["TASK-001"],
+  "purpose": "在不启动真实浏览器、不写入本机 DrissionPage 配置的前提下，确认 Phase 2 Python 迁移满足依赖、签名、类型检查和静态导入边界。",
+  "read_first": [
+    ".workflow/roadmap.md",
+    ".workflow/.csv-wave/20260514-plan-P2-python-drissionpage-42-migration/tasks.csv",
+    ".workflow/scratch/20260514-plan-P1-drissionpage-42-dependency-api/drissionpage-42-api-checklist.md",
+    "pyproject.toml",
+    "uv.lock",
+    "mypy.ini",
+    "autobrowser.py",
+    "main.py",
+    "use_system_user.py"
+  ],
+  "files": {
+    "owned": [".workflow/scratch/20260514-plan-P2-python-drissionpage-42-migration/phase2-verification-notes.md"],
+    "read_only": [
+      "pyproject.toml",
+      "uv.lock",
+      "mypy.ini",
+      "autobrowser.py",
+      "main.py",
+      "use_system_user.py",
+      "userscripts/flowreader.user.js",
+      "userscripts/tests/flowreader.user.test.js"
+    ]
+  },
+  "steps": [
+    {
+      "name": "校验 lock 与依赖声明",
+      "action": "运行 uv lock --check，确认 Phase 1 已固化的 drissionpage>=4.2.0b3,<4.3 与 lock metadata 仍一致。"
+    },
+    {
+      "name": "执行无浏览器 import/signature probe",
+      "action": "运行 Python 一行命令导入 Chromium、ChromiumOptions，输出 DrissionPage 版本和 set_browser_path、new_tab 签名，并断言 edge、hidden、use_system_user_path 可用。该命令不得创建 Chromium() 实例。"
+    },
+    {
+      "name": "运行类型检查",
+      "action": "运行 uv run mypy .，确认移除私有类型导入后没有新增类型错误；如失败，记录完整错误并回到 TASK-001 修正。"
+    },
+    {
+      "name": "静态确认边界",
+      "action": "检查 Python 入口文件不再引用 DrissionPage._pages 或 MixTab；确认本阶段没有运行 uv run main.py --mode short --num 1、没有运行 uv run use_system_user.py、没有运行 userscript Node 回归。"
+    },
+    {
+      "name": "记录验证结果",
+      "action": "生成 phase2-verification-notes.md，写明已执行命令、未执行的 Phase 3 边界、DrissionPage 版本和任何剩余风险。"
+    }
+  ],
+  "convergence": {
+    "criteria": [
+      "uv lock --check",
+      "uv run python -c \"import inspect, importlib.metadata as md; from DrissionPage import Chromium, ChromiumOptions; print('DrissionPage version:', md.version('DrissionPage')); print('set_browser_path:', inspect.signature(ChromiumOptions.set_browser_path)); print('new_tab:', inspect.signature(Chromium.new_tab)); assert 'edge' in str(inspect.signature(ChromiumOptions.set_browser_path)); assert 'hidden' in str(inspect.signature(Chromium.new_tab)); assert callable(getattr(ChromiumOptions(), 'use_system_user_path'))\"",
+      "uv run mypy .",
+      "$matches = Select-String -Path autobrowser.py,main.py,use_system_user.py -Pattern 'DrissionPage\\._pages|\\bMixTab\\b' -ErrorAction SilentlyContinue; if ($matches) { $matches; throw '仍存在 DrissionPage 私有模块或 MixTab 引用' }",
+      "Test-Path .workflow/scratch/20260514-plan-P2-python-drissionpage-42-migration/phase2-verification-notes.md",
+      "Select-String -Path .workflow/scratch/20260514-plan-P2-python-drissionpage-42-migration/phase2-verification-notes.md -Pattern 'uv lock --check|uv run mypy \\.|DrissionPage version|Phase 3|uv run main.py --mode short --num 1|userscript'"
+    ]
+  },
+  "notes": [
+    "禁止执行 uv run main.py --mode short --num 1。",
+    "禁止执行 uv run use_system_user.py，因为 .save() 会写本机配置。",
+    "禁止把 userscript Node 检查作为 Phase 2 必过项；它属于 Phase 3 的未误伤回归。",
+    "若 uv run mypy . 失败，只记录错误和回到 TASK-001 的修正建议，不通过放宽 mypy 配置掩盖问题。"
+  ]
+}

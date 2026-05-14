@@ -1,0 +1,121 @@
+{
+  "id": "PLAN-P3-verification-regression-hardening",
+  "title": "Phase 3：验证与回归加固",
+  "phase": "Phase 3",
+  "goal": "用最小但真实的验证覆盖 DrissionPage 4.2 迁移后的浏览链路，并确认 userscript 未被迁移误伤。",
+  "status": "completed",
+  "created_at": "2026-05-14T21:13:58+08:00",
+  "updated_at": "2026-05-14T21:13:58+08:00",
+  "output_dir": ".workflow/scratch/20260514-plan-P3-verification-regression-hardening",
+  "task_dir": ".workflow/scratch/20260514-plan-P3-verification-regression-hardening/.task",
+  "task_count": 3,
+  "complexity": "medium",
+  "scope": {
+    "in": [
+      "运行 Python 基线验证：uv lock --check、DrissionPage import/signature probe、uv run mypy .。",
+      "运行最小真实浏览器 smoke，覆盖 Edge 启动、linux.do 首页打开、主题列表加载、click.middle() 新标签页、wait/scroll/run_js/close 和 browser.quit()。",
+      "运行 userscript 现有 Node 回归：node --check 与 node --test。",
+      "记录 DrissionPage 4.2.0b3、浏览器、登录态、命令输出、失败栈和回退建议。"
+    ],
+    "out": [
+      "不新增依赖，不引入新测试框架。",
+      "不改变浏览策略、随机延迟、Semaphore(3)、主题加载轮询或 userscript 行为，除非真实 smoke 证明存在直接迁移回归。",
+      "不自动运行 uv run use_system_user.py；该命令会写本机 DrissionPage 配置，只在用户单独确认后执行。",
+      "不把本机浏览器路径、登录态或站点临时结构问题伪装成代码已通过。"
+    ]
+  },
+  "source_context": [
+    ".workflow/roadmap.md Phase 3：验证与回归加固。",
+    ".workflow/.csv-wave/20260514-execute-P2-python-drissionpage-42-migration/context.md：Phase 2 已完成但真实浏览器 smoke 和 userscript 回归未执行。",
+    ".workflow/scratch/20260514-plan-P2-python-drissionpage-42-migration/phase2-verification-notes.md：剩余风险与 Phase 3 边界。",
+    "DrissionPage 4.2 官方文档：https://www.drissionpage.cn/features/4.2"
+  ],
+  "waves": [
+    {
+      "wave": 1,
+      "name": "Python 基线与真实浏览器 smoke",
+      "tasks": ["TASK-001"],
+      "depends_on": []
+    },
+    {
+      "wave": 2,
+      "name": "userscript 回归验证",
+      "tasks": ["TASK-002"],
+      "depends_on": []
+    },
+    {
+      "wave": 3,
+      "name": "验证报告与状态同步",
+      "tasks": ["TASK-003"],
+      "depends_on": ["TASK-001", "TASK-002"]
+    }
+  ],
+  "tasks": [
+    {
+      "id": "TASK-001",
+      "title": "执行 Python 基线与真实浏览器 smoke",
+      "summary": "复跑无副作用 Python 检查，然后以 Edge 为默认目标执行最小真实浏览器 smoke，并记录 DrissionPage 版本、浏览器、登录态、关键页面行为和失败栈。",
+      "depends_on": [],
+      "status": "completed"
+    },
+    {
+      "id": "TASK-002",
+      "title": "执行 userscript Node 回归",
+      "summary": "运行 userscript 语法检查与 Node 内置测试，确认 DrissionPage 迁移没有误伤无关脚本。",
+      "depends_on": [],
+      "status": "completed"
+    },
+    {
+      "id": "TASK-003",
+      "title": "汇总 Phase 3 验证报告",
+      "summary": "整合 Python smoke 和 userscript 回归结果，形成 Phase 3 验证报告；仅在通过时更新 roadmap Phase 3 状态。",
+      "depends_on": ["TASK-001", "TASK-002"],
+      "status": "completed"
+    }
+  ],
+  "convergence": {
+    "criteria": [
+      "uv lock --check",
+      "uv run python -c \"import inspect, importlib.metadata as md; from DrissionPage import Chromium, ChromiumOptions; print('DrissionPage version:', md.version('DrissionPage')); print('set_browser_path:', inspect.signature(ChromiumOptions.set_browser_path)); print('new_tab:', inspect.signature(Chromium.new_tab)); assert 'edge' in str(inspect.signature(ChromiumOptions.set_browser_path)); assert 'hidden' in str(inspect.signature(Chromium.new_tab))\"",
+      "uv run mypy .",
+      "node --check userscripts/flowreader.user.js",
+      "node --test userscripts/tests/flowreader.user.test.js",
+      "Test-Path .workflow/scratch/20260514-plan-P3-verification-regression-hardening/phase3-browser-smoke-notes.md",
+      "Test-Path .workflow/scratch/20260514-plan-P3-verification-regression-hardening/phase3-userscript-regression-notes.md",
+      "Test-Path .workflow/scratch/20260514-plan-P3-verification-regression-hardening/phase3-verification-report.md"
+    ],
+    "artifacts": [
+      ".workflow/scratch/20260514-plan-P3-verification-regression-hardening/phase3-browser-smoke-notes.md",
+      ".workflow/scratch/20260514-plan-P3-verification-regression-hardening/phase3-userscript-regression-notes.md",
+      ".workflow/scratch/20260514-plan-P3-verification-regression-hardening/phase3-verification-report.md",
+      ".workflow/roadmap.md"
+    ]
+  },
+  "quality_check": {
+    "requirements_coverage": "pass",
+    "dependency_correctness": "pass",
+    "collision_safety": "pass",
+    "task_grouping": "pass",
+    "readiness_gate": "pass",
+    "notes": [
+      "Phase 3 的核心风险是真实浏览器、linux.do 登录态和本机 Edge 环境；计划已把这些记录为 smoke notes 的必填事实。",
+      "userscript 回归与 Python smoke 可并行，但报告任务依赖两者结果。",
+      "use_system_user.py 写配置，计划不安排自动执行。"
+    ]
+  },
+  "confidence": {
+    "overall": 0.82,
+    "requirements_coverage": 0.9,
+    "task_quality": 0.84,
+    "dependency_correctness": 0.88,
+    "estimation_accuracy": 0.72,
+    "collision_safety": 0.84,
+    "weakest_dimension": "estimation_accuracy",
+    "rationale": "计划本身明确，但真实浏览器 smoke 依赖本机 Edge、登录态和 linux.do 当前页面结构，因此估时和通过性不确定。"
+  },
+  "references": [
+    "https://www.drissionpage.cn/features/4.2",
+    ".workflow/.csv-wave/20260514-execute-P2-python-drissionpage-42-migration/context.md",
+    ".workflow/scratch/20260514-plan-P2-python-drissionpage-42-migration/phase2-verification-notes.md"
+  ]
+}

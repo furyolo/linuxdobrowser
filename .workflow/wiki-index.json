@@ -1,0 +1,428 @@
+{
+  "version": 2,
+  "generatedAt": 1778762116824,
+  "entries": [
+    {
+      "id": "project-project",
+      "type": "project",
+      "title": "Project: linuxdobrowser",
+      "summary": "## What This Is",
+      "tags": [],
+      "status": "active",
+      "created": "2026-05-14T11:30:03.088Z",
+      "updated": "2026-05-14T11:30:03.088Z",
+      "scope": null,
+      "category": null,
+      "createdBy": null,
+      "sourceRef": null,
+      "parent": null,
+      "related": [],
+      "source": {
+        "kind": "file",
+        "path": "project.md"
+      }
+    },
+    {
+      "id": "roadmap-roadmap",
+      "type": "roadmap",
+      "title": "Roadmap: DrissionPage 4.2 Migration",
+      "summary": "## Requirement",
+      "tags": [],
+      "status": "active",
+      "created": "2026-05-14T11:39:08.708Z",
+      "updated": "2026-05-14T12:32:19.418Z",
+      "scope": null,
+      "category": null,
+      "createdBy": null,
+      "sourceRef": null,
+      "parent": null,
+      "related": [],
+      "source": {
+        "kind": "file",
+        "path": "roadmap.md"
+      }
+    },
+    {
+      "id": "spec:project:architecture-constraints",
+      "type": "spec",
+      "title": "Architecture Constraints",
+      "summary": "# Architecture Constraints",
+      "tags": [
+        "architecture",
+        "module",
+        "layer",
+        "boundary",
+        "dependency",
+        "structure"
+      ],
+      "status": "active",
+      "created": "2026-05-14T11:28:13.763Z",
+      "updated": "2026-05-14T11:30:03.090Z",
+      "scope": "project",
+      "category": "arch",
+      "createdBy": null,
+      "sourceRef": null,
+      "parent": null,
+      "related": [],
+      "source": {
+        "kind": "file",
+        "path": "specs/architecture-constraints.md"
+      }
+    },
+    {
+      "id": "spec:project:architecture-constraints-001",
+      "type": "spec",
+      "title": "- `main.py` 负责 CLI 参数解析、浏览器选择、页面主题加载和任务编排。",
+      "summary": "- `main.py` 负责 CLI 参数解析、浏览器选择、页面主题加载和任务编排。 - `autobrowser.py` 负责单个主题处理、滚动模拟、底部检测和日志记录。 - 修改时应保持入口编排与主题处理的职责边界，避免把浏览器路径配置、CLI 交互和页面阅读细节混在同一层。",
+      "tags": [
+        "entrypoint",
+        "browser-orchestration",
+        "topic-processing"
+      ],
+      "status": "active",
+      "created": "2026-05-14T11:28:13.763Z",
+      "updated": "2026-05-14T11:30:03.090Z",
+      "scope": "project",
+      "category": "arch",
+      "createdBy": null,
+      "sourceRef": null,
+      "parent": "spec:project:architecture-constraints",
+      "related": [],
+      "source": {
+        "kind": "file",
+        "path": "specs/architecture-constraints.md"
+      }
+    },
+    {
+      "id": "spec:project:architecture-constraints-002",
+      "type": "spec",
+      "title": "- FlowReader userscript 以 Discourse 话题页为运行边界，依赖 `.timeline-replies` 和 `csrf-token` 解析阅读上下文。",
+      "summary": "- FlowReader userscript 以 Discourse 话题页为运行边界，依赖 `.timeline-replies` 和 `csrf-token` 解析阅读上下文。 - SPA 路由切换处理必须保持幂等：同一路由不重复挂载 UI，新话题切换时清理旧按钮后重新初始化。 - 阅读请求协议和参数结构属于既有行为，未明确要求时不改动。",
+      "tags": [
+        "userscript",
+        "discourse",
+        "spa-route",
+        "idempotency"
+      ],
+      "status": "active",
+      "created": "2026-05-14T11:28:13.763Z",
+      "updated": "2026-05-14T11:30:03.090Z",
+      "scope": "project",
+      "category": "arch",
+      "createdBy": null,
+      "sourceRef": null,
+      "parent": "spec:project:architecture-constraints",
+      "related": [],
+      "source": {
+        "kind": "file",
+        "path": "specs/architecture-constraints.md"
+      }
+    },
+    {
+      "id": "spec:project:coding-conventions",
+      "type": "spec",
+      "title": "Coding Conventions",
+      "summary": "# Coding Conventions",
+      "tags": [
+        "style",
+        "naming",
+        "import",
+        "pattern",
+        "convention",
+        "formatting"
+      ],
+      "status": "active",
+      "created": "2026-05-14T11:28:13.762Z",
+      "updated": "2026-05-14T11:30:03.090Z",
+      "scope": "project",
+      "category": "coding",
+      "createdBy": null,
+      "sourceRef": null,
+      "parent": null,
+      "related": [],
+      "source": {
+        "kind": "file",
+        "path": "specs/coding-conventions.md"
+      }
+    },
+    {
+      "id": "spec:project:coding-conventions-001",
+      "type": "spec",
+      "title": "- Python 代码使用显式类型标注，现有入口和核心函数都标注参数与返回值。",
+      "summary": "- Python 代码使用显式类型标注，现有入口和核心函数都标注参数与返回值。 - 异步流程以 `asyncio` 为主，浏览主题处理通过 `asyncio.gather` 与 `asyncio.Semaphore` 控制并发。 - DrissionPage 对象按现有 API 直接操作页面和标签页，避免额外包装层。",
+      "tags": [
+        "python",
+        "typing",
+        "asyncio",
+        "drissionpage"
+      ],
+      "status": "active",
+      "created": "2026-05-14T11:28:13.762Z",
+      "updated": "2026-05-14T11:30:03.090Z",
+      "scope": "project",
+      "category": "coding",
+      "createdBy": null,
+      "sourceRef": null,
+      "parent": "spec:project:coding-conventions",
+      "related": [],
+      "source": {
+        "kind": "file",
+        "path": "specs/coding-conventions.md"
+      }
+    },
+    {
+      "id": "spec:project:coding-conventions-002",
+      "type": "spec",
+      "title": "- userscript 保持单文件、原生 DOM 和 GM API 风格，脚本元信息放在 UserScript header。",
+      "summary": "- userscript 保持单文件、原生 DOM 和 GM API 风格，脚本元信息放在 UserScript header。 - 页面状态解析、UI 挂载、设置保存、请求发送拆成独立函数，方便 Node 内置测试导出关键纯逻辑。 - 复杂或关键逻辑使用中文注释，变量名和函数名保持英文。",
+      "tags": [
+        "javascript",
+        "userscript",
+        "dom",
+        "comments"
+      ],
+      "status": "active",
+      "created": "2026-05-14T11:28:13.762Z",
+      "updated": "2026-05-14T11:30:03.090Z",
+      "scope": "project",
+      "category": "coding",
+      "createdBy": null,
+      "sourceRef": null,
+      "parent": "spec:project:coding-conventions",
+      "related": [],
+      "source": {
+        "kind": "file",
+        "path": "specs/coding-conventions.md"
+      }
+    },
+    {
+      "id": "spec:project:debug-notes",
+      "type": "spec",
+      "title": "Debug Notes",
+      "summary": "# Debug Notes",
+      "tags": [
+        "debug",
+        "issue",
+        "workaround",
+        "root-cause",
+        "gotcha"
+      ],
+      "status": "active",
+      "created": "2026-05-14T11:28:13.781Z",
+      "updated": "2026-05-14T11:28:13.781Z",
+      "scope": "project",
+      "category": "debug",
+      "createdBy": null,
+      "sourceRef": null,
+      "parent": null,
+      "related": [],
+      "source": {
+        "kind": "file",
+        "path": "specs/debug-notes.md"
+      }
+    },
+    {
+      "id": "spec:project:learnings",
+      "type": "spec",
+      "title": "Learnings",
+      "summary": "# Learnings",
+      "tags": [
+        "bug",
+        "lesson",
+        "gotcha",
+        "learning"
+      ],
+      "status": "active",
+      "created": "2026-05-14T11:28:13.763Z",
+      "updated": "2026-05-14T11:30:03.091Z",
+      "scope": "project",
+      "category": "learning",
+      "createdBy": null,
+      "sourceRef": null,
+      "parent": null,
+      "related": [],
+      "source": {
+        "kind": "file",
+        "path": "specs/learnings.md"
+      }
+    },
+    {
+      "id": "spec:project:learnings-001",
+      "type": "spec",
+      "title": "后续沉淀到 `.workflow/specs/` 的经验、约定和风险记录统一使用 `<spec-entry>` 闭合标签，并带上 `category`、`keywords`、`date`、`source`，方便追踪来源和按类别读取。",
+      "summary": "后续沉淀到 `.workflow/specs/` 的经验、约定和风险记录统一使用 `<spec-entry>` 闭合标签，并带上 `category`、`keywords`、`date`、`source`，方便追踪来源和按类别读取。",
+      "tags": [
+        "init",
+        "spec-format",
+        "workflow"
+      ],
+      "status": "active",
+      "created": "2026-05-14T11:28:13.763Z",
+      "updated": "2026-05-14T11:30:03.091Z",
+      "scope": "project",
+      "category": "learning",
+      "createdBy": null,
+      "sourceRef": null,
+      "parent": "spec:project:learnings",
+      "related": [],
+      "source": {
+        "kind": "file",
+        "path": "specs/learnings.md"
+      }
+    },
+    {
+      "id": "spec:project:quality-rules",
+      "type": "spec",
+      "title": "Quality Rules",
+      "summary": "# Quality Rules",
+      "tags": [
+        "quality",
+        "lint",
+        "rule",
+        "enforcement"
+      ],
+      "status": "active",
+      "created": "2026-05-14T11:28:13.765Z",
+      "updated": "2026-05-14T11:30:03.093Z",
+      "scope": "project",
+      "category": "review",
+      "createdBy": null,
+      "sourceRef": null,
+      "parent": null,
+      "related": [],
+      "source": {
+        "kind": "file",
+        "path": "specs/quality-rules.md"
+      }
+    },
+    {
+      "id": "spec:project:quality-rules-001",
+      "type": "spec",
+      "title": "- Python 改动后优先运行 `uv run mypy .` 验证类型约束。",
+      "summary": "- Python 改动后优先运行 `uv run mypy .` 验证类型约束。 - userscript 改动后优先运行 `node --check userscripts/flowreader.user.js` 验证语法。 - 依赖新增必须有明确必要性；当前项目以 uv、DrissionPage、Node 内置测试和原生浏览器能力为主。",
+      "tags": [
+        "mypy",
+        "node-check",
+        "minimal-dependencies"
+      ],
+      "status": "active",
+      "created": "2026-05-14T11:28:13.765Z",
+      "updated": "2026-05-14T11:30:03.093Z",
+      "scope": "project",
+      "category": "quality",
+      "createdBy": null,
+      "sourceRef": null,
+      "parent": "spec:project:quality-rules",
+      "related": [],
+      "source": {
+        "kind": "file",
+        "path": "specs/quality-rules.md"
+      }
+    },
+    {
+      "id": "spec:project:review-standards",
+      "type": "spec",
+      "title": "Review Standards",
+      "summary": "# Review Standards",
+      "tags": [
+        "review",
+        "checklist",
+        "gate",
+        "approval",
+        "standard"
+      ],
+      "status": "active",
+      "created": "2026-05-14T11:28:13.782Z",
+      "updated": "2026-05-14T11:28:13.782Z",
+      "scope": "project",
+      "category": "review",
+      "createdBy": null,
+      "sourceRef": null,
+      "parent": null,
+      "related": [],
+      "source": {
+        "kind": "file",
+        "path": "specs/review-standards.md"
+      }
+    },
+    {
+      "id": "spec:project:test-conventions",
+      "type": "spec",
+      "title": "Test Conventions",
+      "summary": "# Test Conventions",
+      "tags": [
+        "test",
+        "coverage",
+        "mock",
+        "fixture",
+        "assertion",
+        "framework"
+      ],
+      "status": "active",
+      "created": "2026-05-14T11:28:13.781Z",
+      "updated": "2026-05-14T11:30:03.099Z",
+      "scope": "project",
+      "category": "test",
+      "createdBy": null,
+      "sourceRef": null,
+      "parent": null,
+      "related": [],
+      "source": {
+        "kind": "file",
+        "path": "specs/test-conventions.md"
+      }
+    },
+    {
+      "id": "spec:project:test-conventions-001",
+      "type": "spec",
+      "title": "- userscript 测试使用 Node 内置 `node:test` 和 `node:assert/strict`。",
+      "summary": "- userscript 测试使用 Node 内置 `node:test` 和 `node:assert/strict`。 - 测试文件放在 `userscripts/tests/`，命名沿用 `*.user.test.js`。 - 优先测试可导出的纯逻辑和边界行为，例如路由签名、页面上下文解析、UI 清理和幂等重初始化。",
+      "tags": [
+        "node-test",
+        "userscript",
+        "regression"
+      ],
+      "status": "active",
+      "created": "2026-05-14T11:28:13.781Z",
+      "updated": "2026-05-14T11:30:03.099Z",
+      "scope": "project",
+      "category": "test",
+      "createdBy": null,
+      "sourceRef": null,
+      "parent": "spec:project:test-conventions",
+      "related": [],
+      "source": {
+        "kind": "file",
+        "path": "specs/test-conventions.md"
+      }
+    },
+    {
+      "id": "spec:project:ui-conventions",
+      "type": "spec",
+      "title": "UI Conventions",
+      "summary": "# UI Conventions",
+      "tags": [
+        "ui",
+        "design",
+        "color",
+        "typography",
+        "layout",
+        "animation",
+        "component"
+      ],
+      "status": "active",
+      "created": "2026-05-14T11:28:13.782Z",
+      "updated": "2026-05-14T11:28:13.782Z",
+      "scope": "project",
+      "category": "ui",
+      "createdBy": null,
+      "sourceRef": null,
+      "parent": null,
+      "related": [],
+      "source": {
+        "kind": "file",
+        "path": "specs/ui-conventions.md"
+      }
+    }
+  ]
+}
