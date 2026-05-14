@@ -5,13 +5,16 @@ from typing import Dict, List, Optional, Any, Coroutine
 from DrissionPage import Chromium, ChromiumOptions
 from autobrowser import wait_for_new_topics, process_topic
 
+EDGE_BROWSER_PATH = r'C:\Program Files (x86)\Microsoft\Edge\Application\msedge.exe'
+EDGE_DEBUG_PORT = 9223
+
 async def browse_with_browser(browser_choice: str, mode: str, browser_paths: Dict[str, str], num_topics: int = 10) -> None:
     """使用指定浏览器进行浏览"""
     co: ChromiumOptions
     if browser_choice == "":
         co = ChromiumOptions()
     elif browser_choice == "edge":
-        co = ChromiumOptions().set_browser_path(edge=True)
+        co = ChromiumOptions().set_browser_path(EDGE_BROWSER_PATH).set_local_port(EDGE_DEBUG_PORT)
     elif browser_choice in browser_paths:
         path: str = browser_paths[browser_choice]
         co = ChromiumOptions().set_browser_path(path)
@@ -70,20 +73,20 @@ async def main() -> None:
     args = parser.parse_args()
 
     browser_paths: Dict[str, str] = {
-        # 'chrome': r'C:\Program Files\Google\Chrome\Application\chrome.exe',
-        'edge': r'C:\Program Files (x86)\Microsoft\Edge\Application\msedge.exe', 
-        '115': r'C:\Users\Andy\AppData\Local\115Chrome\Application\115chrome.exe',
-        'doubao': r'C:\Users\Andy\AppData\Local\Doubao\Application\app\Doubao.exe', 
+        'chrome': r'',
+        '115': r'',
+        'doubao': r'', 
     }
+    browser_choices: List[str] = ['edge', *browser_paths.keys()]
     
     if args.browser == 'single':
         print("请选择要使用的浏览器:")
-        for key in browser_paths.keys():
+        for key in browser_choices:
             print(f"- {key}")
         choice: str = input("请输入你的选择: ").lower().strip()
         await browse_with_browser(choice, args.mode, browser_paths, args.num)
     else:
-        for browser_name in browser_paths.keys():
+        for browser_name in browser_choices:
             print(f"\n正在使用 {browser_name} 浏览...")
             await browse_with_browser(browser_name, args.mode, browser_paths, args.num)
 

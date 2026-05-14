@@ -44,7 +44,7 @@ LinuxDoBrowser is a Python automation tool for browsing the linux.do forum using
 - 当前依赖为 DrissionPage 4.2 beta：`DrissionPage >=4.2.0b3,<4.3`，维护时需要保留 beta API 变化风险。
 - 业务代码禁止导入 `DrissionPage._pages.*` 私有模块；需要类型约束时使用公开 API、本地 `Protocol` 或局部 `Any`。
 - `MixTab` 功能已合并到 Chromium tab 方向，当前代码不再依赖 `MixTab` 类型。
-- `ChromiumOptions.set_browser_path(edge=True)` 仅用于 Edge 分支，115 浏览器和豆包浏览器继续使用显式路径。
+- Edge 分支使用显式 `msedge.exe` 路径并绑定独立本地调试端口，避免连接到默认 `127.0.0.1:9222` 上已有的 Chrome。
 - `Chromium.new_tab()` 已支持 `hidden` 参数，但当前主流程仍保留 `browser.new_tab('https://linux.do/')`，不改变标签页打开策略。
 - Phase 3 已验证 `click.middle()` 返回的新标签页可继续执行 wait、scroll、close 和退出流程。
 - userscript 不属于 DrissionPage 迁移面，但 Phase 3 已用 Node 语法和内置测试确认未误伤。
@@ -57,7 +57,7 @@ LinuxDoBrowser is a Python automation tool for browsing the linux.do forum using
 - **Topic Filtering**: Processes only topics with ≥1 replies or containing 'k' in autobrowser.py:60
 
 ### Browser Management
-- Browser paths configured in main.py:70-75 (Edge, 115浏览器, 豆包浏览器)
+- Browser choices configured in main.py: Edge uses an explicit `msedge.exe` path with a dedicated debug port, while Chrome, 115浏览器, and 豆包浏览器 use explicit paths.
 - Dynamic browser selection via user input in main.py:77-82
 - Sequential browser execution in 'all' mode in main.py:83-86
 - Browser lifecycle management: creation, usage, and cleanup in main.py:20-59
@@ -78,7 +78,7 @@ LinuxDoBrowser is a Python automation tool for browsing the linux.do forum using
 - **Dependency Management**: Uses Aliyun mirror (https://mirrors.aliyun.com/pypi/simple) in pyproject.toml for faster package downloads
 - **Type Safety**: MyPy configuration with Python 3.13 target and DrissionPage import handling
 - **Browser Profile**: System user profile configuration for persistent sessions
-- **Browser Paths**: Hardcoded Windows paths for Edge, 115浏览器, 豆包浏览器 in main.py:70-75
+- **Browser Paths**: Edge, Chrome, 115浏览器, and 豆包浏览器 keep explicit Windows paths in main.py; Edge also uses a dedicated local debug port to avoid attaching to Chrome on `127.0.0.1:9222`.
 - **Logging**: Structured logging with timestamps in autobrowser.py:10-16
 
 ## Userscript
