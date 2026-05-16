@@ -11,7 +11,7 @@ LinuxDoBrowser is a Python automation tool for browsing the linux.do forum using
 - `main.py`: Entry point with argument parsing and browser orchestration. Contains main browsing loop and topic loading logic.
 - `autobrowser.py`: Core browsing logic including human-like scrolling simulation, topic processing, and concurrent execution handling.
 - `use_system_user.py`: Configuration script to use system user browser profiles.
-- `flowreader.user.js`: Tampermonkey/Greasemonkey userscript for manual forum reading with configurable timing. Supports both linux.do and idcflare.com domains.
+- `flowreader.user.js`: Tampermonkey/Greasemonkey userscript for manual forum reading with configurable timing. Supports both linux.do and idcflare.com domains; on linux.do topic pages its floating button opens a small action menu with Markdown export for the original post.
 - `pyproject.toml`: Project dependencies and metadata with uv package manager configuration. Uses Aliyun mirror for faster package downloads in China.
 - `mypy.ini`: Type checking configuration with DrissionPage import handling.
 
@@ -22,6 +22,8 @@ LinuxDoBrowser is a Python automation tool for browsing the linux.do forum using
 - Run type checking: `uv run mypy .`
 - Run main application: `uv run main.py`
 - Configure system user profile: `uv run use_system_user.py` (writes local DrissionPage config)
+- Check FlowReader userscript: `node --check userscripts/flowreader.user.js`
+- Test FlowReader userscript: `node --test userscripts/tests/flowreader.user.test.js`
 - Add new dependency: `uv add <package-name>`
 
 ### Browser Modes
@@ -37,7 +39,8 @@ LinuxDoBrowser is a Python automation tool for browsing the linux.do forum using
 - Current verified version: DrissionPage `4.2.0b3`
 - No-side-effect checks passed: `uv lock --check` and `uv run mypy .`
 - Phase 3 real browser smoke passed with Edge: `"edge" | uv run main.py --mode short --num 1 --browser single`
-- Phase 3 userscript regression passed: `node --check userscripts/flowreader.user.js` and `node --test userscripts/tests/flowreader.user.test.js` (`7 pass, 0 fail`)
+- Phase 3 userscript regression passed: `node --check userscripts/flowreader.user.js` and `node --test userscripts/tests/flowreader.user.test.js`.
+- Main-post export validation is covered in FlowReader tests.
 - `uv run use_system_user.py` writes local DrissionPage config and should only be run intentionally
 
 ## DrissionPage 4.2 Migration Notes

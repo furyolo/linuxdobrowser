@@ -57,8 +57,24 @@ uv run use_system_user.py
 
 - 当前本地验证版本：DrissionPage `4.2.0b3`。
 - Edge 真实浏览器 smoke 已通过：`"edge" | uv run main.py --mode short --num 1 --browser single`。
-- userscript 回归已通过：`node --check userscripts/flowreader.user.js` 和 `node --test userscripts/tests/flowreader.user.test.js`，结果为 `7 pass, 0 fail`。
+- userscript 回归已通过：`node --check userscripts/flowreader.user.js` 和 `node --test userscripts/tests/flowreader.user.test.js`。
 - DrissionPage 4.2 仍按 beta/pre-release 风险维护；后续依赖重解析或浏览链路变更后，应重新运行轻量检查，必要时再执行真实浏览器 smoke。
+
+## UserScripts
+
+`userscripts/` 目录包含可安装到 Tampermonkey/Greasemonkey 的辅助脚本：
+
+- `flowreader.user.js`：论坛手动阅读辅助；在 Linux.do 话题详情页，悬停或聚焦右侧 FlowReader 浮动按钮会展开快捷菜单，点击“导出 Markdown”可导出楼主主帖。
+- `summarizeForumThread.user.js`：Linux.do 帖子总结辅助。
+
+安装 `flowreader.user.js` 后，打开 `https://linux.do/t/topic/...` 形式的话题详情页，悬停或键盘聚焦右侧 FlowReader 浮动按钮即可看到“导出 Markdown”。脚本只导出 `post_number = 1` 的主帖，不包含跟帖；文件正文保持 Discourse API 返回的 `raw` 内容，文件头附带来源、标题、作者和时间等元数据。
+
+UserScript 验证命令：
+
+```bash
+node --check userscripts/flowreader.user.js
+node --test userscripts/tests/flowreader.user.test.js
+```
 
 ## 命令行参数
 

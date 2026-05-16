@@ -6,7 +6,8 @@
 // @icon        https://linux.do/favicon.ico
 // @grant       GM_setValue
 // @grant       GM_getValue
-// @version     2.3.0
+// @grant       GM_download
+// @version     2.4.0
 // @author      Andy
 // ==/UserScript==
 
@@ -176,6 +177,8 @@ const STYLE_TEXT = `
     transform: translateY(0) !important;
     background: var(--tertiary) !important;
     color: #fff !important;
+    border: 0 !important;
+    padding: 0 !important;
     width: 48px !important;
     height: 48px !important;
     border-radius: 50% !important;
@@ -195,6 +198,58 @@ const STYLE_TEXT = `
 .userscript-rb .rb-float-button svg {
     width: 24px !important;
     height: 24px !important;
+}
+
+.userscript-rb .rb-fab-menu {
+    position: fixed !important;
+    right: 20px !important;
+    top: calc(33.33% + 52px) !important;
+    min-width: 148px !important;
+    padding: 0 !important;
+    border-radius: 999px !important;
+    background: transparent !important;
+    color: #fff !important;
+    box-shadow: none !important;
+    z-index: 9997 !important;
+    opacity: 0 !important;
+    pointer-events: none !important;
+    transform: translateY(-8px) !important;
+    transition: opacity 0.22s ease, transform 0.22s ease !important;
+}
+
+.userscript-rb.is-menu-open .rb-fab-menu {
+    opacity: 1 !important;
+    pointer-events: auto !important;
+    transform: translateY(0) !important;
+}
+
+.userscript-rb .rb-fab-menu-item {
+    width: 100% !important;
+    min-height: 38px !important;
+    padding: 0 14px !important;
+    border: 0 !important;
+    border-radius: 999px !important;
+    background: var(--tertiary) !important;
+    color: #fff !important;
+    cursor: pointer !important;
+    font-size: 13px !important;
+    font-weight: 600 !important;
+    text-align: center !important;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2) !important;
+    transition: transform 0.2s ease, box-shadow 0.2s ease !important;
+    transform: translateZ(0) !important;
+    white-space: nowrap !important;
+}
+
+.userscript-rb .rb-fab-menu-item:hover,
+.userscript-rb .rb-fab-menu-item:focus {
+    transform: translateZ(0) scale(1.04) !important;
+    box-shadow: 0 4px 14px rgba(0, 0, 0, 0.24) !important;
+    outline: none !important;
+}
+
+.userscript-rb .rb-fab-menu-item:active {
+    transform: translateZ(0) scale(0.98) !important;
 }
 
 @media (prefers-color-scheme: dark) {
@@ -218,7 +273,8 @@ const STYLE_TEXT = `
     .userscript-rb .rb-overlay,
     .userscript-rb .rb-container,
     .userscript-rb .rb-status,
-    .userscript-rb .rb-float-button {
+    .userscript-rb .rb-float-button,
+    .userscript-rb .rb-fab-menu {
         transition: none !important;
     }
 }
@@ -256,7 +312,9 @@ let pageContext = null;
 const runtimeState = {
     lastRouteSignature: null,
     routeListenersInstalled: false,
-    routeChangeTimer: null
+    routeChangeTimer: null,
+    fabMenuOpenTimer: null,
+    fabMenuCloseTimer: null
 };
 
 function parseRepliesInfo(repliesInfo) {
@@ -302,6 +360,12 @@ function getRouteSignature(locationLike = window.location) {
     }
 
     return `topic:${currentTopicID}`;
+}
+
+function canExportMarkdown(locationLike = window.location) {
+    const hostname = locationLike?.hostname ?? "";
+    const pathname = locationLike?.pathname ?? "";
+    return hostname === "linux.do" && pathname.startsWith("/t/topic/") && Boolean(getTopicID(pathname));
 }
 
 function getPageContext(doc = document, locationLike = window.location) {
@@ -364,6 +428,9 @@ function waitForPageContext(timeout = 10000, interval = 250) {
 }
 
 function cleanupScriptUI(doc = document) {
+    clearTimeout(runtimeState.fabMenuOpenTimer);
+    clearTimeout(runtimeState.fabMenuCloseTimer);
+
     for (const selector of SCRIPT_UI_SELECTORS) {
         doc.querySelectorAll(selector).forEach(node => node.remove());
     }
@@ -450,6 +517,67 @@ async function initialize() {
     }
 }
 
+function setFabMenuOpen(wrapper, isOpen) {
+    const trigger = wrapper.querySelector(".rb-float-button");
+    wrapper.classList.toggle("is-menu-open", isOpen);
+    trigger?.setAttribute("aria-expanded", String(isOpen));
+}
+
+function scheduleFabMenuOpen(wrapper, delay = 500) {
+    clearTimeout(runtimeState.fabMenuCloseTimer);
+    clearTimeout(runtimeState.fabMenuOpenTimer);
+    runtimeState.fabMenuOpenTimer = setTimeout(() => setFabMenuOpen(wrapper, true), delay);
+}
+
+function scheduleFabMenuClose(wrapper, delay = 180) {
+    clearTimeout(runtimeState.fabMenuOpenTimer);
+    clearTimeout(runtimeState.fabMenuCloseTimer);
+    runtimeState.fabMenuCloseTimer = setTimeout(() => setFabMenuOpen(wrapper, false), delay);
+}
+
+function bindFloatMenu(wrapper) {
+    const trigger = wrapper.querySelector(".rb-float-button");
+    const menu = wrapper.querySelector(".rb-fab-menu");
+    const exportButton = wrapper.querySelector('[data-flowreader-action="export-markdown"]');
+
+    trigger.addEventListener("click", startReading);
+    if (!menu) {
+        return;
+    }
+
+    trigger.addEventListener("mouseenter", () => scheduleFabMenuOpen(wrapper));
+    trigger.addEventListener("mouseleave", () => scheduleFabMenuClose(wrapper, 320));
+    menu.addEventListener("mouseenter", () => {
+        clearTimeout(runtimeState.fabMenuCloseTimer);
+        setFabMenuOpen(wrapper, true);
+    });
+    menu.addEventListener("mouseleave", () => scheduleFabMenuClose(wrapper, 220));
+    wrapper.addEventListener("mouseleave", () => scheduleFabMenuClose(wrapper));
+    wrapper.addEventListener("focusin", () => setFabMenuOpen(wrapper, true));
+    wrapper.addEventListener("focusout", event => {
+        if (!wrapper.contains(event.relatedTarget)) {
+            scheduleFabMenuClose(wrapper, 120);
+        }
+    });
+    wrapper.addEventListener("keydown", event => {
+        if (event.key === "Escape") {
+            setFabMenuOpen(wrapper, false);
+            trigger.focus();
+        }
+
+        if (event.key === "ArrowDown" && document.activeElement === trigger) {
+            event.preventDefault();
+            setFabMenuOpen(wrapper, true);
+            menu.querySelector(".rb-fab-menu-item")?.focus();
+        }
+    });
+
+    exportButton?.addEventListener("click", () => {
+        setFabMenuOpen(wrapper, false);
+        exportMainPostMarkdown();
+    });
+}
+
 // 设置UI
 function setupUI() {
     if (document.querySelector('[data-flowreader-role="float-button-wrapper"]')) {
@@ -467,16 +595,27 @@ function setupUI() {
     const floatButton = document.createElement("div");
     floatButton.className = "userscript-rb";
     floatButton.dataset.flowreaderRole = "float-button-wrapper";
+    const hasExportAction = canExportMarkdown(window.location);
+    const menuAttributes = hasExportAction
+        ? 'aria-haspopup="menu" aria-expanded="false" aria-controls="flowreader-fab-menu"'
+        : "";
+    const exportMenu = hasExportAction
+        ? `<div id="flowreader-fab-menu" class="rb-fab-menu" role="menu" aria-label="FlowReader 快捷操作">
+            <button class="rb-fab-menu-item" type="button" role="menuitem" data-flowreader-action="export-markdown">导出 Markdown</button>
+        </div>`
+        : "";
+
     floatButton.innerHTML = `
-        <div class="rb-float-button" title="开始阅读">
+        <button class="rb-float-button" type="button" title="开始阅读" ${menuAttributes}>
             <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M14.752 11.168l-3.197-2.132A1 1 0 0010 9.87v4.263a1 1 0 001.555.832l3.197-2.132a1 1 0 000-1.664z" />
                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
             </svg>
-        </div>
+        </button>
+        ${exportMenu}
     `;
     document.body.appendChild(floatButton);
-    floatButton.querySelector(".rb-float-button").addEventListener("click", startReading);
+    bindFloatMenu(floatButton);
 }
 
 // 创建按钮
@@ -665,6 +804,195 @@ function getStoredConfig() {
     }, {});
 }
 
+function buildTopicApiUrl(origin, currentTopicID) {
+    return `${origin}/t/${currentTopicID}.json`;
+}
+
+function buildPostApiUrl(origin, postId) {
+    return `${origin}/posts/${postId}.json`;
+}
+
+function normalizeSourceUrl(locationLike) {
+    const sourceUrl = new URL(locationLike.href || locationLike.pathname, locationLike.origin);
+    sourceUrl.hash = "";
+    return sourceUrl.toString();
+}
+
+function sanitizeFileName(value, fallback = "linuxdo-main-post") {
+    const normalized = String(value || fallback)
+        .replace(/[\\/:*?"<>|]/g, "-")
+        .replace(/\s+/g, " ")
+        .trim()
+        .replace(/[. ]+$/g, "");
+
+    return (normalized || fallback).slice(0, 120);
+}
+
+function yamlString(value) {
+    return JSON.stringify(value == null ? "" : String(value));
+}
+
+function buildMarkdownDocument(details) {
+    const raw = typeof details.raw === "string" ? details.raw : "";
+    const metadata = [
+        "---",
+        `source: ${yamlString(details.url)}`,
+        `topic_id: ${yamlString(details.topicId)}`,
+        `post_id: ${yamlString(details.postId)}`,
+        `title: ${yamlString(details.title)}`,
+        `author: ${yamlString(details.author)}`,
+        `created_at: ${yamlString(details.createdAt)}`,
+        "exported_from: \"flowreader\"",
+        "---",
+        ""
+    ].join("\n");
+
+    return `${metadata}${raw}${raw.endsWith("\n") ? "" : "\n"}`;
+}
+
+function pickMainPost(topicData) {
+    const posts = topicData?.post_stream?.posts;
+    if (Array.isArray(posts) && posts.length > 0) {
+        const mainPost = posts.find(post => post?.post_number === 1) || posts[0];
+        return {
+            id: mainPost?.id,
+            post: mainPost
+        };
+    }
+
+    const stream = topicData?.post_stream?.stream;
+    if (Array.isArray(stream) && stream.length > 0) {
+        return {
+            id: stream[0],
+            post: null
+        };
+    }
+
+    return {
+        id: null,
+        post: null
+    };
+}
+
+async function fetchJson(url, fetchImpl = fetch, context = pageContext) {
+    const response = await fetchImpl(url, {
+        method: "GET",
+        mode: "cors",
+        credentials: "include",
+        headers: {
+            "Accept": "application/json",
+            "X-CSRF-Token": context?.csrfToken ?? "",
+            "X-Requested-With": "XMLHttpRequest",
+            "X-Silence-Logger": "true"
+        }
+    });
+
+    if (!response.ok) {
+        throw new Error(`请求失败：HTTP ${response.status}`);
+    }
+
+    return response.json();
+}
+
+async function collectMainPostMarkdown(options = {}) {
+    const locationLike = options.locationLike || window.location;
+    const fetchImpl = options.fetchImpl || fetch;
+    const context = options.context || pageContext || (
+        typeof document !== "undefined" ? getPageContext(document, locationLike) : null
+    );
+    const currentTopicID = getTopicID(locationLike.pathname ?? "");
+
+    if (!canExportMarkdown(locationLike)) {
+        throw new Error("当前页面不是 Linux.do 话题详情页");
+    }
+
+    const topicData = await fetchJson(buildTopicApiUrl(locationLike.origin, currentTopicID), fetchImpl, context);
+    const mainPostInfo = pickMainPost(topicData);
+
+    if (!mainPostInfo.id) {
+        throw new Error("未能从话题数据中找到主帖 ID");
+    }
+
+    let postData = mainPostInfo.post;
+    if (!postData || typeof postData.raw !== "string") {
+        postData = await fetchJson(buildPostApiUrl(locationLike.origin, mainPostInfo.id), fetchImpl, context);
+    }
+
+    if (typeof postData?.raw !== "string") {
+        throw new Error("主帖 API 响应中缺少 raw Markdown 内容");
+    }
+
+    const title = topicData.title || postData.topic_slug || `linuxdo-${currentTopicID}`;
+    const filename = `${sanitizeFileName(`linuxdo-${currentTopicID}-${title}`)}.md`;
+    const markdown = buildMarkdownDocument({
+        raw: postData.raw,
+        url: normalizeSourceUrl(locationLike),
+        topicId: currentTopicID,
+        postId: postData.id || mainPostInfo.id,
+        title,
+        author: postData.username,
+        createdAt: postData.created_at
+    });
+
+    return {
+        filename,
+        markdown
+    };
+}
+
+function triggerAnchorDownload(blobUrl, filename, doc = document) {
+    const link = doc.createElement("a");
+    link.href = blobUrl;
+    link.download = filename;
+    link.rel = "noopener";
+    doc.body.appendChild(link);
+    link.click();
+    link.remove();
+}
+
+function downloadMarkdown(filename, markdown, doc = document) {
+    const blob = new Blob([markdown], { type: "text/markdown;charset=utf-8" });
+    const blobUrl = URL.createObjectURL(blob);
+
+    if (typeof GM_download === "function") {
+        try {
+            GM_download({
+                url: blobUrl,
+                name: filename,
+                saveAs: true,
+                onload: () => URL.revokeObjectURL(blobUrl),
+                onerror: () => {
+                    triggerAnchorDownload(blobUrl, filename, doc);
+                    setTimeout(() => URL.revokeObjectURL(blobUrl), 1000);
+                }
+            });
+            return;
+        } catch (error) {
+            console.warn("GM_download 不可用，回退到浏览器下载", error);
+        }
+    }
+
+    triggerAnchorDownload(blobUrl, filename, doc);
+    setTimeout(() => URL.revokeObjectURL(blobUrl), 1000);
+}
+
+async function exportMainPostMarkdown() {
+    if (!canExportMarkdown(window.location)) {
+        showStatus("当前站点暂不支持导出 Markdown", "warning");
+        return;
+    }
+
+    try {
+        showStatus("正在导出主帖 Markdown...", "warning");
+        const result = await collectMainPostMarkdown();
+        downloadMarkdown(result.filename, result.markdown);
+        showStatus("主帖 Markdown 已生成", "success");
+    } catch (error) {
+        console.error("导出主帖 Markdown 失败：", error);
+        showStatus(`导出失败：${error.message}`, "error");
+    }
+}
+
 // 显示状态提示
 function showStatus(message, type = "success") {
     const wrapper = document.createElement("div");
@@ -792,12 +1120,17 @@ async function startReading() {
 
 if (typeof module !== "undefined" && module.exports) {
     module.exports = {
+        buildMarkdownDocument,
+        canExportMarkdown,
+        collectMainPostMarkdown,
         cleanupScriptUI,
         getRouteSignature,
         getPageContext,
         handleRouteChange,
+        pickMainPost,
         parseRepliesInfo,
-        resolveSettingsMountPoint
+        resolveSettingsMountPoint,
+        sanitizeFileName
     };
 }
 

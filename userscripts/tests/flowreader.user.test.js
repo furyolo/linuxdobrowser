@@ -2,12 +2,17 @@ const test = require("node:test");
 const assert = require("node:assert/strict");
 
 const {
+    buildMarkdownDocument,
+    canExportMarkdown,
+    collectMainPostMarkdown,
     cleanupScriptUI,
     getRouteSignature,
     handleRouteChange,
+    pickMainPost,
     parseRepliesInfo,
     getPageContext,
-    resolveSettingsMountPoint
+    resolveSettingsMountPoint,
+    sanitizeFileName
 } = require("../flowreader.user.js");
 
 function createFakeDocument(selectorMap, selectorAllMap = {}) {
@@ -64,6 +69,21 @@ test("不同话题路由应生成新的签名", () => {
     assert.equal(
         getRouteSignature({ pathname: "/t/topic/1912000/1" }),
         "topic:1912000"
+    );
+});
+
+test("只有 Linux.do 话题页显示 Markdown 导出动作", () => {
+    assert.equal(
+        canExportMarkdown({ hostname: "linux.do", pathname: "/t/topic/1912000/1" }),
+        true
+    );
+    assert.equal(
+        canExportMarkdown({ hostname: "idcflare.com", pathname: "/t/topic/1912000/1" }),
+        false
+    );
+    assert.equal(
+        canExportMarkdown({ hostname: "linux.do", pathname: "/latest" }),
+        false
     );
 });
 
@@ -131,4 +151,97 @@ test("清理逻辑应移除旧的脚本按钮", () => {
     cleanupScriptUI(doc);
 
     assert.deepEqual(removed, ["settings", "float"]);
+});
+
+test("Markdown 导出应优先选择 post_number 为 1 的主帖", () => {
+    const topicData = {
+        post_stream: {
+            posts: [
+                { id: 20, post_number: 2 },
+                { id: 10, post_number: 1 }
+            ]
+        }
+    };
+
+    assert.deepEqual(pickMainPost(topicData), {
+        id: 10,
+        post: { id: 10, post_number: 1 }
+    });
+});
+
+test("Markdown 导出应保留 raw 正文内容", () => {
+    const raw = "# 标题\n\n- A\n- B\n";
+    const markdown = buildMarkdownDocument({
+        raw,
+        url: "https://linux.do/t/topic/1",
+        topicId: "1",
+        postId: "10",
+        title: "测试",
+        author: "author",
+        createdAt: "2026-05-16T12:00:00Z"
+    });
+
+    assert.ok(markdown.startsWith("---\n"));
+    assert.ok(markdown.endsWith(raw));
+});
+
+test("Markdown 导出文件名应移除 Windows 非法字符", () => {
+    assert.equal(
+        sanitizeFileName('linuxdo-1-a/b:c*d?"e<f>g|'),
+        "linuxdo-1-a-b-c-d--e-f-g-"
+    );
+});
+
+test("topic 响应无 raw 时，FlowReader 会回退请求单帖 API", async () => {
+    const calls = [];
+    const requestOptions = [];
+    const fetchImpl = async (url, options) => {
+        calls.push(url);
+        requestOptions.push(options);
+
+        if (url.endsWith("/t/2005411.json")) {
+            return {
+                ok: true,
+                json: async () => ({
+                    title: "导出测试",
+                    post_stream: {
+                        posts: [{ id: 99, post_number: 1, username: "op" }]
+                    }
+                })
+            };
+        }
+
+        return {
+            ok: true,
+            json: async () => ({
+                id: 99,
+                raw: "原始 **Markdown**",
+                username: "op",
+                created_at: "2026-05-16T12:00:00Z"
+            })
+        };
+    };
+
+    const result = await collectMainPostMarkdown({
+        fetchImpl,
+        context: {
+            csrfToken: "csrf-123"
+        },
+        locationLike: {
+            hostname: "linux.do",
+            origin: "https://linux.do",
+            pathname: "/t/topic/2005411/1",
+            href: "https://linux.do/t/topic/2005411/1"
+        }
+    });
+
+    assert.deepEqual(calls, [
+        "https://linux.do/t/2005411.json",
+        "https://linux.do/posts/99.json"
+    ]);
+    assert.equal(result.filename, "linuxdo-2005411-导出测试.md");
+    assert.match(result.markdown, /原始 \*\*Markdown\*\*/);
+    assert.equal(requestOptions[0].credentials, "include");
+    assert.equal(requestOptions[0].headers["X-CSRF-Token"], "csrf-123");
+    assert.equal(requestOptions[0].headers["X-Requested-With"], "XMLHttpRequest");
 });
