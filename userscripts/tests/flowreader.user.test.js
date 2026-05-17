@@ -8,9 +8,13 @@ const {
     collectHomeTopicItems,
     cleanupScriptUI,
     createMainTopicTimingParams,
+    filterUnreadHomeTopicItems,
+    getHomeBrowseButtonLabel,
     getRouteSignature,
     handleRouteChange,
     isSupportedHomePage,
+    mergeReadMainTopicIds,
+    normalizeMainTopicIdList,
     parseTopicUrl,
     pickMainPost,
     parseRepliesInfo,
@@ -178,6 +182,34 @@ test("首页主帖收集应按页面顺序去重并跳过无效链接", () => {
             }
         ]
     );
+});
+
+test("首页主帖进度应清理无效值并保持顺序去重", () => {
+    assert.deepEqual(
+        normalizeMainTopicIdList('["1912000","bad","1912001","1912000"]'),
+        ["1912000", "1912001"]
+    );
+    assert.deepEqual(
+        mergeReadMainTopicIds(["1912000"], "1912001"),
+        ["1912000", "1912001"]
+    );
+});
+
+test("继续浏览主帖时应跳过已浏览 ID", () => {
+    const topics = [
+        { id: "1912000", title: "已浏览" },
+        { id: "1912001", title: "新主题" }
+    ];
+
+    assert.deepEqual(
+        filterUnreadHomeTopicItems(topics, ["1912000"]),
+        [{ id: "1912001", title: "新主题" }]
+    );
+});
+
+test("首页主帖按钮文案应随进度切换", () => {
+    assert.equal(getHomeBrowseButtonLabel(0), "FlowReader 浏览主帖");
+    assert.equal(getHomeBrowseButtonLabel(3), "FlowReader 继续浏览主帖");
 });
 
 test("主帖浏览请求参数只标记一楼主帖", () => {
