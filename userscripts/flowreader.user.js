@@ -1,13 +1,13 @@
 // ==UserScript==
 // @name        Multi-Forum Reader
 // @namespace   multi_forum_Reader
-// @match       https://linux.do/t/topic/*
+// @match       https://linux.do/*
 // @match       https://idcflare.com/t/topic/*
 // @icon        https://linux.do/favicon.ico
 // @grant       GM_setValue
 // @grant       GM_getValue
 // @grant       GM_download
-// @version     2.4.0
+// @version     2.5.0
 // @author      Andy
 // ==/UserScript==
 
@@ -135,6 +135,26 @@ const STYLE_TEXT = `
     height: 20px !important;
 }
 
+.userscript-rb-flowreader-home-button {
+    margin-left: 8px !important;
+    border: 1px solid var(--tertiary) !important;
+    background: var(--secondary) !important;
+    color: var(--tertiary) !important;
+    font-weight: 700 !important;
+    box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--tertiary) 24%, transparent) !important;
+}
+
+.userscript-rb-flowreader-home-button:hover,
+.userscript-rb-flowreader-home-button:focus {
+    background: var(--tertiary-low) !important;
+    color: var(--tertiary) !important;
+}
+
+.userscript-rb-flowreader-home-button:disabled {
+    cursor: progress !important;
+    opacity: 0.72 !important;
+}
+
 .userscript-rb .rb-status {
     position: fixed !important;
     bottom: 20px !important;
@@ -252,6 +272,40 @@ const STYLE_TEXT = `
     transform: translateZ(0) scale(0.98) !important;
 }
 
+.userscript-rb .rb-home-main-topics-button {
+    position: fixed !important;
+    right: 20px !important;
+    top: 33.33% !important;
+    min-height: 38px !important;
+    padding: 0 14px !important;
+    border: 0 !important;
+    border-radius: 999px !important;
+    background: var(--tertiary) !important;
+    color: #fff !important;
+    cursor: pointer !important;
+    font-size: 13px !important;
+    font-weight: 600 !important;
+    text-align: center !important;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2) !important;
+    z-index: 9997 !important;
+    transition: transform 0.2s ease, box-shadow 0.2s ease !important;
+    transform: translateZ(0) !important;
+    white-space: nowrap !important;
+}
+
+.userscript-rb .rb-home-main-topics-button:hover,
+.userscript-rb .rb-home-main-topics-button:focus {
+    transform: translateZ(0) scale(1.04) !important;
+    box-shadow: 0 4px 14px rgba(0, 0, 0, 0.24) !important;
+    outline: none !important;
+}
+
+.userscript-rb .rb-home-main-topics-button:disabled {
+    cursor: progress !important;
+    opacity: 0.72 !important;
+    transform: translateZ(0) !important;
+}
+
 @media (prefers-color-scheme: dark) {
     .userscript-rb .rb-overlay {
         background: rgba(0, 0, 0, 0.95) !important;
@@ -286,9 +340,17 @@ const SETTINGS_MOUNT_SELECTORS = [
     ".timeline-footer-controls"
 ];
 
+const HOME_BROWSE_MOUNT_SELECTORS = [
+    ".list-controls .navigation-container",
+    ".list-controls",
+    ".navigation-controls"
+];
+
 const SCRIPT_UI_SELECTORS = [
     '[data-flowreader-role="settings-button"]',
-    '[data-flowreader-role="float-button-wrapper"]'
+    '[data-flowreader-role="float-button-wrapper"]',
+    '[data-flowreader-role="home-main-topics-wrapper"]',
+    '[data-flowreader-role="home-main-topics-button"]'
 ];
 
 // 默认配置
@@ -348,18 +410,28 @@ function getTopicID(pathname) {
     return pathname.split("/")[3] ?? "";
 }
 
+function isSupportedHomePage(locationLike = window.location) {
+    const hostname = locationLike?.hostname ?? "";
+    const pathname = locationLike?.pathname ?? "";
+    return hostname === "linux.do" && (pathname === "/" || pathname === "/latest");
+}
+
 function getRouteSignature(locationLike = window.location) {
     const pathname = locationLike?.pathname ?? "";
-    if (!pathname.startsWith("/t/topic/")) {
-        return null;
+    if (pathname.startsWith("/t/topic/")) {
+        const currentTopicID = getTopicID(pathname);
+        if (!currentTopicID) {
+            return null;
+        }
+
+        return `topic:${currentTopicID}`;
     }
 
-    const currentTopicID = getTopicID(pathname);
-    if (!currentTopicID) {
-        return null;
+    if (isSupportedHomePage(locationLike)) {
+        return `home:${pathname || "/"}`;
     }
 
-    return `topic:${currentTopicID}`;
+    return null;
 }
 
 function canExportMarkdown(locationLike = window.location) {
@@ -368,11 +440,14 @@ function canExportMarkdown(locationLike = window.location) {
     return hostname === "linux.do" && pathname.startsWith("/t/topic/") && Boolean(getTopicID(pathname));
 }
 
+function getCsrfToken(doc = document) {
+    return doc.querySelector('meta[name="csrf-token"]')?.getAttribute("content") ?? "";
+}
+
 function getPageContext(doc = document, locationLike = window.location) {
     const repliesElement = doc.querySelector(".timeline-replies");
-    const csrfTokenElement = doc.querySelector('meta[name="csrf-token"]');
     const parsedReplies = parseRepliesInfo(repliesElement?.textContent?.trim() ?? "");
-    const csrfToken = csrfTokenElement?.getAttribute("content") ?? "";
+    const csrfToken = getCsrfToken(doc);
 
     if (!parsedReplies || !csrfToken) {
         return null;
@@ -402,6 +477,70 @@ function syncRuntimeState() {
     topicID = getTopicID(window.location.pathname);
     pageContext = getPageContext();
     return pageContext;
+}
+
+function parseTopicUrl(href, baseUrl = window.location.href) {
+    if (!href) {
+        return null;
+    }
+
+    let topicUrl;
+    try {
+        topicUrl = new URL(href, baseUrl);
+    } catch {
+        return null;
+    }
+
+    if (topicUrl.hostname !== "linux.do") {
+        return null;
+    }
+
+    const parts = topicUrl.pathname.split("/").filter(Boolean);
+    if (parts[0] !== "t") {
+        return null;
+    }
+
+    let topicId = parts[1] === "topic" ? parts[2] : "";
+    if (!topicId) {
+        for (let index = parts.length - 1; index > 0; index--) {
+            if (/^\d+$/.test(parts[index])) {
+                topicId = parts[index];
+                break;
+            }
+        }
+    }
+
+    if (!topicId || !/^\d+$/.test(topicId)) {
+        return null;
+    }
+
+    topicUrl.hash = "";
+    return {
+        id: topicId,
+        url: topicUrl.toString()
+    };
+}
+
+function collectHomeTopicItems(doc = document, locationLike = window.location) {
+    const baseUrl = locationLike.href || `${locationLike.origin}${locationLike.pathname}`;
+    const items = [];
+    const seenTopicIds = new Set();
+
+    for (const link of doc.querySelectorAll('a[href*="/t/"]')) {
+        const parsed = parseTopicUrl(link.getAttribute("href") || link.href, baseUrl);
+        if (!parsed || seenTopicIds.has(parsed.id)) {
+            continue;
+        }
+
+        seenTopicIds.add(parsed.id);
+        items.push({
+            id: parsed.id,
+            url: parsed.url,
+            title: link.textContent?.trim() || link.getAttribute("title") || `topic-${parsed.id}`
+        });
+    }
+
+    return items;
 }
 
 function waitForPageContext(timeout = 10000, interval = 250) {
@@ -452,17 +591,22 @@ async function handleRouteChange(state = runtimeState, options = {}) {
         return false;
     }
 
-    await (options.waitForContext ?? waitForPageContext)();
-    const latestContext = (options.syncState ?? syncRuntimeState)();
-    if (!latestContext) {
-        return false;
+    const isTopicRoute = nextRouteSignature.startsWith("topic:");
+    if (isTopicRoute) {
+        await (options.waitForContext ?? waitForPageContext)();
+        const latestContext = (options.syncState ?? syncRuntimeState)();
+        if (!latestContext) {
+            return false;
+        }
+    } else {
+        (options.syncState ?? syncRuntimeState)();
     }
 
     cleanupUI(targetDocument);
     (options.setupUI ?? setupUI)();
     state.lastRouteSignature = nextRouteSignature;
 
-    if ((options.config ?? config).autoStart) {
+    if (isTopicRoute && (options.config ?? config).autoStart) {
         await (options.startReading ?? startReading)();
     }
 
@@ -578,8 +722,49 @@ function bindFloatMenu(wrapper) {
     });
 }
 
-// 设置UI
-function setupUI() {
+function resolveHomeBrowseMountPoint(doc = document) {
+    for (const selector of HOME_BROWSE_MOUNT_SELECTORS) {
+        const mountPoint = doc.querySelector(selector);
+        if (mountPoint) {
+            return mountPoint;
+        }
+    }
+
+    return null;
+}
+
+function setupHomeUI() {
+    if (!isSupportedHomePage(window.location)) {
+        return;
+    }
+
+    if (document.querySelector('[data-flowreader-role="home-main-topics-button"]')) {
+        return;
+    }
+
+    const mountPoint = resolveHomeBrowseMountPoint();
+    const browseMainTopicsButton = createButton("FlowReader 浏览主帖", () => startReadingMainTopics({
+        button: browseMainTopicsButton
+    }));
+    browseMainTopicsButton.dataset.flowreaderRole = "home-main-topics-button";
+    browseMainTopicsButton.title = "浏览当前页面可见主帖";
+    browseMainTopicsButton.classList.add("userscript-rb-flowreader-home-button");
+
+    if (mountPoint) {
+        mountPoint.appendChild(browseMainTopicsButton);
+        return;
+    }
+
+    // 首页列表工具栏在不同加载状态下不稳定，找不到时降级为固定按钮，保证入口可见。
+    const wrapper = document.createElement("div");
+    wrapper.className = "userscript-rb";
+    wrapper.dataset.flowreaderRole = "home-main-topics-wrapper";
+    browseMainTopicsButton.className = "rb-home-main-topics-button";
+    wrapper.appendChild(browseMainTopicsButton);
+    document.body.appendChild(wrapper);
+}
+
+function setupTopicUI() {
     if (document.querySelector('[data-flowreader-role="float-button-wrapper"]')) {
         return;
     }
@@ -591,7 +776,7 @@ function setupUI() {
         settingsMountPoint.appendChild(settingsButton);
     }
 
-    // 添加浮动开始按钮
+    // 添加跟帖浏览浮动按钮
     const floatButton = document.createElement("div");
     floatButton.className = "userscript-rb";
     floatButton.dataset.flowreaderRole = "float-button-wrapper";
@@ -606,7 +791,7 @@ function setupUI() {
         : "";
 
     floatButton.innerHTML = `
-        <button class="rb-float-button" type="button" title="开始阅读" ${menuAttributes}>
+        <button class="rb-float-button" type="button" title="浏览跟帖" ${menuAttributes}>
             <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M14.752 11.168l-3.197-2.132A1 1 0 0010 9.87v4.263a1 1 0 001.555.832l3.197-2.132a1 1 0 000-1.664z" />
                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
@@ -616,6 +801,16 @@ function setupUI() {
     `;
     document.body.appendChild(floatButton);
     bindFloatMenu(floatButton);
+}
+
+// 设置UI
+function setupUI() {
+    if (isSupportedHomePage(window.location)) {
+        setupHomeUI();
+        return;
+    }
+
+    setupTopicUI();
 }
 
 // 创建按钮
@@ -1027,6 +1222,62 @@ function getRandomInt(min, max) {
     return Math.floor(Math.random() * (max - min + 1)) + min;
 }
 
+function createMainTopicTimingParams(currentTopicID, readTime = getRandomInt(config.minReadTime, config.maxReadTime)) {
+    const params = new URLSearchParams();
+    params.append("timings[1]", String(readTime));
+    params.append("topic_time", String(readTime));
+    params.append("topic_id", currentTopicID);
+    return params;
+}
+
+function createTimingHeaders(csrfToken = pageContext?.csrfToken ?? getCsrfToken()) {
+    return {
+        "accept": "*/*",
+        "content-type": "application/x-www-form-urlencoded; charset=UTF-8",
+        "discourse-background": "true",
+        "discourse-logged-in": "true",
+        "discourse-present": "true",
+        "priority": "u=1, i",
+        "sec-fetch-dest": "empty",
+        "sec-fetch-mode": "cors",
+        "sec-fetch-site": "same-origin",
+        "x-csrf-token": csrfToken,
+        "x-requested-with": "XMLHttpRequest",
+        "x-silence-logger": "true"
+    };
+}
+
+async function sendMainTopicTiming(currentTopicID, retryCount = 3, options = {}) {
+    const fetchImpl = options.fetchImpl || fetch;
+    const params = createMainTopicTimingParams(currentTopicID);
+
+    try {
+        const response = await fetchImpl(`${currentProtocol}//${currentDomain}/topics/timings`, {
+            headers: createTimingHeaders(options.csrfToken),
+            referrer: `${currentProtocol}//${currentDomain}/`,
+            body: params.toString(),
+            method: "POST",
+            mode: "cors",
+            credentials: "include"
+        });
+
+        if (!response.ok) {
+            throw new Error(`HTTP请求失败，状态码：${response.status}`);
+        }
+
+        return true;
+    } catch (error) {
+        console.error(`浏览主帖 ${currentTopicID} 失败: `, error);
+
+        if (retryCount > 0) {
+            await new Promise(r => setTimeout(r, 2000));
+            return sendMainTopicTiming(currentTopicID, retryCount - 1, options);
+        }
+
+        return false;
+    }
+}
+
 // 创建请求参数
 function createBatchParams(startId, endId) {
     const params = new URLSearchParams();
@@ -1050,20 +1301,7 @@ async function sendBatch(startId, endId, retryCount = 3) {
     const params = createBatchParams(startId, endId);
     try {
         const response = await fetch(`${currentProtocol}//${currentDomain}/topics/timings`, {
-            headers: {
-                "accept": "*/*",
-                "content-type": "application/x-www-form-urlencoded; charset=UTF-8",
-                "discourse-background": "true",
-                "discourse-logged-in": "true",
-                "discourse-present": "true",
-                "priority": "u=1, i",
-                "sec-fetch-dest": "empty",
-                "sec-fetch-mode": "cors",
-                "sec-fetch-site": "same-origin",
-                "x-csrf-token": pageContext?.csrfToken ?? "",
-                "x-requested-with": "XMLHttpRequest",
-                "x-silence-logger": "true"
-            },
+            headers: createTimingHeaders(pageContext?.csrfToken ?? ""),
             referrer: `${currentProtocol}//${currentDomain}/`,
             body: params.toString(),
             method: "POST",
@@ -1087,6 +1325,75 @@ async function sendBatch(startId, endId, retryCount = 3) {
         } else {
             showStatus(`阅读跟帖 ${startId} - ${endId} 失败，自动跳过`, "error");
             return false;
+        }
+    }
+}
+
+// 开始浏览首页可见主帖
+async function startReadingMainTopics(options = {}) {
+    syncRuntimeState();
+
+    const doc = options.doc || document;
+    const locationLike = options.locationLike || window.location;
+    if (!isSupportedHomePage(locationLike)) {
+        showStatus("当前页面不支持浏览主帖", "warning");
+        return;
+    }
+
+    const topics = collectHomeTopicItems(doc, locationLike);
+    if (topics.length === 0) {
+        showStatus("当前页面未找到可浏览主帖", "warning");
+        return;
+    }
+
+    const csrfToken = getCsrfToken(doc);
+    if (!csrfToken) {
+        showStatus("未找到 CSRF 信息，暂时无法浏览主帖", "error");
+        return;
+    }
+
+    const button = options.button || doc.querySelector('[data-flowreader-role="home-main-topics-button"]');
+    const buttonLabel = button?.querySelector(".d-button-label");
+    if (button) {
+        button.disabled = true;
+    }
+    if (buttonLabel) {
+        buttonLabel.textContent = "浏览中...";
+    }
+
+    let successCount = 0;
+    let failedCount = 0;
+
+    try {
+        for (let index = 0; index < topics.length; index++) {
+            const topic = topics[index];
+            showStatus(`浏览主帖 ${index + 1} / ${topics.length}：${topic.title}`, "success");
+
+            const success = await sendMainTopicTiming(topic.id, 3, {
+                csrfToken,
+                fetchImpl: options.fetchImpl
+            });
+
+            if (success) {
+                successCount++;
+                const delay = config.baseDelay + getRandomInt(0, config.randomDelayRange);
+                await new Promise(r => setTimeout(r, delay));
+            } else {
+                failedCount++;
+            }
+        }
+
+        if (failedCount > 0) {
+            showStatus(`主帖浏览完成：成功 ${successCount}，失败 ${failedCount}`, "warning");
+        } else {
+            showStatus(`所有主帖浏览完成，共 ${successCount} 个`, "success");
+        }
+    } finally {
+        if (button) {
+            button.disabled = false;
+        }
+        if (buttonLabel) {
+            buttonLabel.textContent = "FlowReader 浏览主帖";
         }
     }
 }
@@ -1123,10 +1430,14 @@ if (typeof module !== "undefined" && module.exports) {
         buildMarkdownDocument,
         canExportMarkdown,
         collectMainPostMarkdown,
+        collectHomeTopicItems,
         cleanupScriptUI,
+        createMainTopicTimingParams,
         getRouteSignature,
         getPageContext,
         handleRouteChange,
+        isSupportedHomePage,
+        parseTopicUrl,
         pickMainPost,
         parseRepliesInfo,
         resolveSettingsMountPoint,

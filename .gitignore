@@ -151,3 +151,6 @@ poetry.lock
 
 .claude/
 .ace-tool/
+
+# Codex / workflow runtime analytics
+.workflow/spec-analytics.jsonl

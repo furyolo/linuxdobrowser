@@ -5,9 +5,13 @@ const {
     buildMarkdownDocument,
     canExportMarkdown,
     collectMainPostMarkdown,
+    collectHomeTopicItems,
     cleanupScriptUI,
+    createMainTopicTimingParams,
     getRouteSignature,
     handleRouteChange,
+    isSupportedHomePage,
+    parseTopicUrl,
     pickMainPost,
     parseRepliesInfo,
     getPageContext,
@@ -22,6 +26,22 @@ function createFakeDocument(selectorMap, selectorAllMap = {}) {
         },
         querySelectorAll(selector) {
             return selectorAllMap[selector] ?? [];
+        }
+    };
+}
+
+function createFakeAnchor(href, textContent = "", title = "") {
+    return {
+        href,
+        textContent,
+        getAttribute(name) {
+            if (name === "href") {
+                return href;
+            }
+            if (name === "title") {
+                return title;
+            }
+            return null;
         }
     };
 }
@@ -70,6 +90,103 @@ test("不同话题路由应生成新的签名", () => {
         getRouteSignature({ pathname: "/t/topic/1912000/1" }),
         "topic:1912000"
     );
+});
+
+test("LinuxDo 首页应生成独立的主帖浏览路由签名", () => {
+    assert.equal(
+        getRouteSignature({ hostname: "linux.do", pathname: "/" }),
+        "home:/"
+    );
+    assert.equal(
+        getRouteSignature({ hostname: "linux.do", pathname: "/latest" }),
+        "home:/latest"
+    );
+    assert.equal(
+        getRouteSignature({ hostname: "idcflare.com", pathname: "/" }),
+        null
+    );
+});
+
+test("只在 LinuxDo 首页支持浏览主帖", () => {
+    assert.equal(isSupportedHomePage({ hostname: "linux.do", pathname: "/" }), true);
+    assert.equal(isSupportedHomePage({ hostname: "linux.do", pathname: "/latest" }), true);
+    assert.equal(isSupportedHomePage({ hostname: "linux.do", pathname: "/t/topic/1912000/1" }), false);
+    assert.equal(isSupportedHomePage({ hostname: "idcflare.com", pathname: "/" }), false);
+});
+
+test("可以解析 LinuxDo 话题链接中的 topic id", () => {
+    assert.deepEqual(
+        parseTopicUrl("/t/topic/1912000/1", "https://linux.do/latest"),
+        {
+            id: "1912000",
+            url: "https://linux.do/t/topic/1912000/1"
+        }
+    );
+    assert.equal(parseTopicUrl("/t/topic/not-a-number/1", "https://linux.do/latest"), null);
+    assert.equal(parseTopicUrl("https://example.com/t/topic/1912000/1", "https://linux.do/"), null);
+});
+
+test("首页路由初始化不应等待话题时间轴，也不应自动浏览跟帖", async () => {
+    const calls = [];
+    const runtimeState = {
+        lastRouteSignature: null
+    };
+
+    const handled = await handleRouteChange(runtimeState, {
+        locationLike: { hostname: "linux.do", pathname: "/" },
+        waitForContext: async () => calls.push("wait"),
+        syncState: () => calls.push("sync"),
+        cleanupUI: () => calls.push("cleanup"),
+        setupUI: () => calls.push("setup"),
+        startReading: async () => calls.push("start"),
+        config: { autoStart: true }
+    });
+
+    assert.equal(handled, true);
+    assert.equal(runtimeState.lastRouteSignature, "home:/");
+    assert.deepEqual(calls, ["sync", "cleanup", "setup"]);
+});
+
+test("首页主帖收集应按页面顺序去重并跳过无效链接", () => {
+    const links = [
+        createFakeAnchor("/t/topic/1912000/1", "第一个主题"),
+        createFakeAnchor("/t/topic/1912000/2", "重复主题"),
+        createFakeAnchor("https://linux.do/t/topic/1912001/1", "第二个主题"),
+        createFakeAnchor("https://example.com/t/topic/1912002/1", "外站主题"),
+        createFakeAnchor("/not-topic", "无效链接")
+    ];
+    const doc = createFakeDocument({}, {
+        'a[href*="/t/"]': links
+    });
+
+    assert.deepEqual(
+        collectHomeTopicItems(doc, {
+            href: "https://linux.do/latest",
+            origin: "https://linux.do",
+            pathname: "/latest"
+        }),
+        [
+            {
+                id: "1912000",
+                url: "https://linux.do/t/topic/1912000/1",
+                title: "第一个主题"
+            },
+            {
+                id: "1912001",
+                url: "https://linux.do/t/topic/1912001/1",
+                title: "第二个主题"
+            }
+        ]
+    );
+});
+
+test("主帖浏览请求参数只标记一楼主帖", () => {
+    const params = createMainTopicTimingParams("1912000", 1200);
+
+    assert.equal(params.get("topic_id"), "1912000");
+    assert.equal(params.get("timings[1]"), "1200");
+    assert.equal(params.get("topic_time"), "1200");
+    assert.equal([...params.keys()].includes("timings[2]"), false);
 });
 
 test("只有 Linux.do 话题页显示 Markdown 导出动作", () => {
