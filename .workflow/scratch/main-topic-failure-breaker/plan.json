@@ -1,0 +1,18 @@
+{
+  "tasks": [
+    {
+      "id": "T1",
+      "title": "增加连续失败熔断逻辑",
+      "status": "completed",
+      "files": ["userscripts/flowreader.user.js"],
+      "convergence_criteria": "连续 3 个主帖最终失败后停止本轮浏览，成功主帖仍保存进度"
+    },
+    {
+      "id": "T2",
+      "title": "补充单元测试并验证",
+      "status": "completed",
+      "files": ["userscripts/tests/flowreader.user.test.js"],
+      "convergence_criteria": "新增测试覆盖熔断阈值，node --check 和 node --test 通过"
+    }
+  ]
+}

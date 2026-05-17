@@ -20,7 +20,8 @@ const {
     parseRepliesInfo,
     getPageContext,
     resolveSettingsMountPoint,
-    sanitizeFileName
+    sanitizeFileName,
+    shouldStopMainTopicBrowsing
 } = require("../flowreader.user.js");
 
 function createFakeDocument(selectorMap, selectorAllMap = {}) {
@@ -195,6 +196,17 @@ test("首页主帖进度应清理无效值并保持顺序去重", () => {
     );
 });
 
+test("首页主帖进度应按上限保留最近记录", () => {
+    assert.deepEqual(
+        normalizeMainTopicIdList(["1912000", "1912001", "1912002"], 2),
+        ["1912001", "1912002"]
+    );
+    assert.deepEqual(
+        mergeReadMainTopicIds(["1912000", "1912001"], "1912002", 2),
+        ["1912001", "1912002"]
+    );
+});
+
 test("继续浏览主帖时应跳过已浏览 ID", () => {
     const topics = [
         { id: "1912000", title: "已浏览" },
@@ -210,6 +222,12 @@ test("继续浏览主帖时应跳过已浏览 ID", () => {
 test("首页主帖按钮文案应随进度切换", () => {
     assert.equal(getHomeBrowseButtonLabel(0), "FlowReader 浏览主帖");
     assert.equal(getHomeBrowseButtonLabel(3), "FlowReader 继续浏览主帖");
+});
+
+test("首页主帖连续失败达到阈值后应停止本轮浏览", () => {
+    assert.equal(shouldStopMainTopicBrowsing(2), false);
+    assert.equal(shouldStopMainTopicBrowsing(3), true);
+    assert.equal(shouldStopMainTopicBrowsing(2, 2), true);
 });
 
 test("主帖浏览请求参数只标记一楼主帖", () => {

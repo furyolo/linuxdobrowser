@@ -253,9 +253,6 @@ const STYLE_TEXT = `
 }
 
 .userscript-rb .rb-home-main-topics-button {
-    position: fixed !important;
-    right: 20px !important;
-    top: 33.33% !important;
     min-height: 38px !important;
     padding: 0 14px !important;
     border: 0 !important;
@@ -295,17 +292,17 @@ const STYLE_TEXT = `
     gap: 8px !important;
 }
 
+.userscript-rb .rb-home-main-topics-wrapper .rb-fab-menu {
+    position: absolute !important;
+    right: 0 !important;
+    top: calc(100% + 8px) !important;
+    min-width: 112px !important;
+}
+
 .userscript-rb .rb-home-reset-button {
-    min-height: 32px !important;
-    padding: 0 12px !important;
-    border: 1px solid var(--primary-low) !important;
-    border-radius: 999px !important;
     background: var(--secondary) !important;
-    color: var(--primary-medium) !important;
-    cursor: pointer !important;
-    font-size: 12px !important;
-    font-weight: 600 !important;
-    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.16) !important;
+    color: var(--primary) !important;
+    border: 1px solid var(--primary-low) !important;
 }
 
 @media (prefers-color-scheme: dark) {
@@ -351,6 +348,8 @@ const SCRIPT_UI_SELECTORS = [
 ];
 
 const MAIN_TOPIC_PROGRESS_KEY = "flowreader.mainTopicReadIds";
+const MAIN_TOPIC_MAX_CONSECUTIVE_FAILURES = 3;
+const MAIN_TOPIC_MAX_PROGRESS_IDS = 20000;
 
 // 默认配置
 const DEFAULT_CONFIG = {
@@ -542,7 +541,7 @@ function collectHomeTopicItems(doc = document, locationLike = window.location) {
     return items;
 }
 
-function normalizeMainTopicIdList(value) {
+function normalizeMainTopicIdList(value, maxItems = MAIN_TOPIC_MAX_PROGRESS_IDS) {
     let parsedValue = value;
     if (typeof value === "string") {
         try {
@@ -557,7 +556,7 @@ function normalizeMainTopicIdList(value) {
     }
 
     const seen = new Set();
-    return parsedValue
+    const normalizedTopicIds = parsedValue
         .map(item => String(item).trim())
         .filter(item => /^\d+$/.test(item))
         .filter(item => {
@@ -568,6 +567,12 @@ function normalizeMainTopicIdList(value) {
             seen.add(item);
             return true;
         });
+
+    if (!Number.isFinite(maxItems) || maxItems <= 0) {
+        return normalizedTopicIds;
+    }
+
+    return normalizedTopicIds.slice(-maxItems);
 }
 
 function getReadMainTopicIds(storageGetter = typeof GM_getValue === "function" ? GM_getValue : null) {
@@ -587,8 +592,8 @@ function saveReadMainTopicIds(topicIds, storageSetter = typeof GM_setValue === "
     return normalizedTopicIds;
 }
 
-function mergeReadMainTopicIds(topicIds, topicId) {
-    return normalizeMainTopicIdList([...normalizeMainTopicIdList(topicIds), topicId]);
+function mergeReadMainTopicIds(topicIds, topicId, maxItems = MAIN_TOPIC_MAX_PROGRESS_IDS) {
+    return normalizeMainTopicIdList([...normalizeMainTopicIdList(topicIds, maxItems), topicId], maxItems);
 }
 
 function filterUnreadHomeTopicItems(topics, readTopicIds) {
@@ -598,6 +603,10 @@ function filterUnreadHomeTopicItems(topics, readTopicIds) {
 
 function getHomeBrowseButtonLabel(readCount = getReadMainTopicIds().length) {
     return readCount > 0 ? "FlowReader 继续浏览主帖" : "FlowReader 浏览主帖";
+}
+
+function shouldStopMainTopicBrowsing(consecutiveFailureCount, threshold = MAIN_TOPIC_MAX_CONSECUTIVE_FAILURES) {
+    return consecutiveFailureCount >= threshold;
 }
 
 function setButtonLabel(button, label) {
@@ -613,10 +622,17 @@ function setButtonLabel(button, label) {
 }
 
 function resetMainTopicProgress() {
+    const confirmImpl = typeof window !== "undefined" && typeof window.confirm === "function"
+        ? window.confirm.bind(window)
+        : null;
+    if (confirmImpl && !confirmImpl("确定要清空主帖浏览进度吗？")) {
+        return;
+    }
+
     saveReadMainTopicIds([]);
     const button = document.querySelector('[data-flowreader-role="home-main-topics-button"]');
     setButtonLabel(button, getHomeBrowseButtonLabel(0));
-    showStatus("主帖浏览进度已重置", "success");
+    showStatus("主帖浏览进度已重置，已记录 0 个主帖", "success");
 }
 
 function waitForPageContext(timeout = 10000, interval = 250) {
@@ -738,7 +754,7 @@ async function initialize() {
 }
 
 function setFabMenuOpen(wrapper, isOpen) {
-    const trigger = wrapper.querySelector(".rb-float-button");
+    const trigger = wrapper.querySelector(".rb-float-button, .rb-home-main-topics-button");
     wrapper.classList.toggle("is-menu-open", isOpen);
     trigger?.setAttribute("aria-expanded", String(isOpen));
 }
@@ -755,13 +771,8 @@ function scheduleFabMenuClose(wrapper, delay = 180) {
     runtimeState.fabMenuCloseTimer = setTimeout(() => setFabMenuOpen(wrapper, false), delay);
 }
 
-function bindFloatMenu(wrapper) {
-    const trigger = wrapper.querySelector(".rb-float-button");
-    const menu = wrapper.querySelector(".rb-fab-menu");
-    const exportButton = wrapper.querySelector('[data-flowreader-action="export-markdown"]');
-
-    trigger.addEventListener("click", startReading);
-    if (!menu) {
+function bindFabMenuInteractions(wrapper, trigger, menu) {
+    if (!trigger || !menu) {
         return;
     }
 
@@ -791,10 +802,38 @@ function bindFloatMenu(wrapper) {
             menu.querySelector(".rb-fab-menu-item")?.focus();
         }
     });
+}
+
+function bindFloatMenu(wrapper) {
+    const trigger = wrapper.querySelector(".rb-float-button");
+    const menu = wrapper.querySelector(".rb-fab-menu");
+    const exportButton = wrapper.querySelector('[data-flowreader-action="export-markdown"]');
+
+    trigger.addEventListener("click", startReading);
+    bindFabMenuInteractions(wrapper, trigger, menu);
 
     exportButton?.addEventListener("click", () => {
         setFabMenuOpen(wrapper, false);
         exportMainPostMarkdown();
+    });
+}
+
+function bindHomeMainTopicsMenu(wrapper) {
+    const trigger = wrapper.querySelector('[data-flowreader-role="home-main-topics-button"]');
+    const menu = wrapper.querySelector(".rb-fab-menu");
+    const resetButton = wrapper.querySelector('[data-flowreader-action="reset-main-topic-progress"]');
+    if (!trigger) {
+        return;
+    }
+
+    trigger.addEventListener("click", () => startReadingMainTopics({
+        button: trigger
+    }));
+    bindFabMenuInteractions(wrapper, trigger, menu);
+
+    resetButton?.addEventListener("click", () => {
+        setFabMenuOpen(wrapper, false);
+        resetMainTopicProgress();
     });
 }
 
@@ -813,28 +852,38 @@ function setupHomeUI() {
 
     const controls = document.createElement("div");
     controls.className = "rb-home-main-topics-wrapper";
+    const readTopicCount = getReadMainTopicIds().length;
 
     const browseMainTopicsButton = document.createElement("button");
     browseMainTopicsButton.className = "rb-home-main-topics-button";
     browseMainTopicsButton.type = "button";
     browseMainTopicsButton.dataset.flowreaderRole = "home-main-topics-button";
-    browseMainTopicsButton.title = "浏览当前页面可见主帖";
-    browseMainTopicsButton.textContent = getHomeBrowseButtonLabel();
-    browseMainTopicsButton.addEventListener("click", () => startReadingMainTopics({
-        button: browseMainTopicsButton
-    }));
+    browseMainTopicsButton.title = `浏览当前页面可见主帖，已记录 ${readTopicCount} 个主帖`;
+    browseMainTopicsButton.setAttribute("aria-haspopup", "menu");
+    browseMainTopicsButton.setAttribute("aria-expanded", "false");
+    browseMainTopicsButton.setAttribute("aria-controls", "flowreader-home-main-topics-menu");
+    browseMainTopicsButton.textContent = getHomeBrowseButtonLabel(readTopicCount);
+
+    const menu = document.createElement("div");
+    menu.id = "flowreader-home-main-topics-menu";
+    menu.className = "rb-fab-menu";
+    menu.setAttribute("role", "menu");
+    menu.setAttribute("aria-label", "FlowReader 主帖操作");
 
     const resetButton = document.createElement("button");
-    resetButton.className = "rb-home-reset-button";
+    resetButton.className = "rb-fab-menu-item rb-home-reset-button";
     resetButton.type = "button";
+    resetButton.setAttribute("role", "menuitem");
     resetButton.dataset.flowreaderRole = "home-main-topics-reset-button";
+    resetButton.dataset.flowreaderAction = "reset-main-topic-progress";
     resetButton.textContent = "重置进度";
-    resetButton.addEventListener("click", resetMainTopicProgress);
 
     controls.appendChild(browseMainTopicsButton);
-    controls.appendChild(resetButton);
+    menu.appendChild(resetButton);
+    controls.appendChild(menu);
     wrapper.appendChild(controls);
     document.body.appendChild(wrapper);
+    bindHomeMainTopicsMenu(wrapper);
 }
 
 function setupTopicUI() {
@@ -1440,6 +1489,8 @@ async function startReadingMainTopics(options = {}) {
 
     let successCount = 0;
     let failedCount = 0;
+    let consecutiveFailureCount = 0;
+    let stoppedByConsecutiveFailures = false;
 
     try {
         for (let index = 0; index < unreadTopics.length; index++) {
@@ -1453,6 +1504,7 @@ async function startReadingMainTopics(options = {}) {
 
             if (success) {
                 successCount++;
+                consecutiveFailureCount = 0;
                 readTopicIds = saveReadMainTopicIds(
                     mergeReadMainTopicIds(readTopicIds, topic.id),
                     options.storageSetter
@@ -1461,17 +1513,28 @@ async function startReadingMainTopics(options = {}) {
                 await new Promise(r => setTimeout(r, delay));
             } else {
                 failedCount++;
+                consecutiveFailureCount++;
+                if (shouldStopMainTopicBrowsing(consecutiveFailureCount)) {
+                    stoppedByConsecutiveFailures = true;
+                    break;
+                }
             }
         }
 
-        if (failedCount > 0) {
-            showStatus(`主帖浏览完成：成功 ${successCount}，失败 ${failedCount}`, "warning");
+        if (stoppedByConsecutiveFailures) {
+            showStatus(
+                `连续 ${MAIN_TOPIC_MAX_CONSECUTIVE_FAILURES} 个主帖浏览失败，已停止。成功 ${successCount}，失败 ${failedCount}，已记录 ${readTopicIds.length} 个主帖。请检查网络或登录状态后重试。`,
+                "error"
+            );
+        } else if (failedCount > 0) {
+            showStatus(`主帖浏览完成：成功 ${successCount}，失败 ${failedCount}，已记录 ${readTopicIds.length} 个主帖`, "warning");
         } else {
-            showStatus(`本次主帖浏览完成，共 ${successCount} 个`, "success");
+            showStatus(`本次主帖浏览完成，共 ${successCount} 个，已记录 ${readTopicIds.length} 个主帖`, "success");
         }
     } finally {
         if (button) {
             button.disabled = false;
+            button.title = `浏览当前页面可见主帖，已记录 ${readTopicIds.length} 个主帖`;
         }
         setButtonLabel(button, getHomeBrowseButtonLabel(readTopicIds.length));
     }
@@ -1524,7 +1587,8 @@ if (typeof module !== "undefined" && module.exports) {
         pickMainPost,
         parseRepliesInfo,
         resolveSettingsMountPoint,
-        sanitizeFileName
+        sanitizeFileName,
+        shouldStopMainTopicBrowsing
     };
 }
 
