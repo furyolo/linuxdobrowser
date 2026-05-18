@@ -1,0 +1,4 @@
+id,role,topic,question
+site-mechanism,subject-matter-expert,"Linux.do/Discourse main topic view counting","Assess whether an API-only replacement exists for counting topic views, based on Discourse behavior and browser navigation requirements. Return concise JSON with recommendation, evidence, risks."
+implementation,system-architect,"FlowReader userscript current-tab main topic browsing","Assess implementation options in this repo: current-tab left click flow, location navigation, CDP/DrissionPage, and likely safest path. Return concise JSON with recommendation, files, risks."
+testing,test-strategist,"FlowReader current-tab browsing tests","Assess focused test strategy for replacing /topics/timings homepage browsing with current-tab navigation/session state. Return concise JSON with tests and residual risk."

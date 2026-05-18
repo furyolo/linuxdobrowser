@@ -348,8 +348,15 @@ const SCRIPT_UI_SELECTORS = [
 ];
 
 const MAIN_TOPIC_PROGRESS_KEY = "flowreader.mainTopicReadIds";
+const MAIN_TOPIC_SESSION_KEY = "flowreader.mainTopicBrowsingSession";
 const MAIN_TOPIC_MAX_CONSECUTIVE_FAILURES = 3;
 const MAIN_TOPIC_MAX_PROGRESS_IDS = 20000;
+const MAIN_TOPIC_SESSION_TTL_MS = 60 * 60 * 1000;
+const MAIN_TOPIC_TIMING_TIMEOUT_MS = 12000;
+const TOPIC_UNAVAILABLE_TEXTS = [
+    "抱歉，我们无法加载该话题",
+    "Sorry, we couldn't load that topic"
+];
 
 // 默认配置
 const DEFAULT_CONFIG = {
@@ -601,6 +608,168 @@ function filterUnreadHomeTopicItems(topics, readTopicIds) {
     return topics.filter(topic => !readTopicIdSet.has(String(topic.id)));
 }
 
+// 当前 Tab 浏览会跨首页和话题页跳转，必须持久化队列才能在返回首页后继续。
+function normalizeMainTopicBrowsingSession(value, now = Date.now()) {
+    let parsedValue = value;
+    if (typeof value === "string") {
+        if (!value.trim()) {
+            return null;
+        }
+
+        try {
+            parsedValue = JSON.parse(value);
+        } catch {
+            return null;
+        }
+    }
+
+    if (!parsedValue || typeof parsedValue !== "object") {
+        return null;
+    }
+
+    const topics = Array.isArray(parsedValue.topics)
+        ? parsedValue.topics
+            .map(topic => ({
+                id: String(topic?.id ?? "").trim(),
+                url: String(topic?.url ?? "").trim(),
+                title: String(topic?.title ?? topic?.id ?? "").trim()
+            }))
+            .filter(topic => /^\d+$/.test(topic.id) && topic.url)
+        : [];
+    if (topics.length === 0) {
+        return null;
+    }
+
+    const updatedAt = Number(parsedValue.updatedAt || parsedValue.startedAt || 0);
+    if (Number.isFinite(updatedAt) && updatedAt > 0 && now - updatedAt > MAIN_TOPIC_SESSION_TTL_MS) {
+        return null;
+    }
+
+    const index = Math.max(0, Math.min(Number.parseInt(parsedValue.index, 10) || 0, topics.length));
+    const sourceUrl = String(parsedValue.sourceUrl || "");
+    const phase = ["home", "topic", "returning", "complete"].includes(parsedValue.phase)
+        ? parsedValue.phase
+        : "home";
+
+    return {
+        active: true,
+        sourceUrl,
+        topics,
+        index,
+        phase,
+        successCount: Math.max(0, Number.parseInt(parsedValue.successCount, 10) || 0),
+        failedCount: Math.max(0, Number.parseInt(parsedValue.failedCount, 10) || 0),
+        consecutiveFailureCount: Math.max(0, Number.parseInt(parsedValue.consecutiveFailureCount, 10) || 0),
+        startedAt: Number(parsedValue.startedAt) || now,
+        updatedAt: Number.isFinite(updatedAt) && updatedAt > 0 ? updatedAt : now
+    };
+}
+
+function createMainTopicBrowsingSession(topics, sourceUrl, now = Date.now()) {
+    return normalizeMainTopicBrowsingSession({
+        active: true,
+        sourceUrl,
+        topics,
+        index: 0,
+        phase: "home",
+        successCount: 0,
+        failedCount: 0,
+        consecutiveFailureCount: 0,
+        startedAt: now,
+        updatedAt: now
+    }, now);
+}
+
+function getMainTopicBrowsingSession(storageGetter = typeof GM_getValue === "function" ? GM_getValue : null, now = Date.now()) {
+    if (!storageGetter) {
+        return null;
+    }
+
+    return normalizeMainTopicBrowsingSession(storageGetter(MAIN_TOPIC_SESSION_KEY, ""), now);
+}
+
+function saveMainTopicBrowsingSession(session, storageSetter = typeof GM_setValue === "function" ? GM_setValue : null, now = Date.now()) {
+    const normalizedSession = normalizeMainTopicBrowsingSession({
+        ...session,
+        updatedAt: now
+    }, now);
+    if (storageSetter) {
+        storageSetter(MAIN_TOPIC_SESSION_KEY, normalizedSession ? JSON.stringify(normalizedSession) : "");
+    }
+
+    return normalizedSession;
+}
+
+function clearMainTopicBrowsingSession(storageSetter = typeof GM_setValue === "function" ? GM_setValue : null) {
+    if (storageSetter) {
+        storageSetter(MAIN_TOPIC_SESSION_KEY, "");
+    }
+}
+
+function getCurrentMainTopicSessionItem(session) {
+    return session?.topics?.[session.index] ?? null;
+}
+
+function isCurrentMainTopicBrowsingSessionRoute(locationLike = window.location, storageGetter = typeof GM_getValue === "function" ? GM_getValue : null, now = Date.now()) {
+    const session = getMainTopicBrowsingSession(storageGetter, now);
+    const topic = getCurrentMainTopicSessionItem(session);
+    return Boolean(topic && String(topic.id) === getTopicID(locationLike?.pathname ?? ""));
+}
+
+function findHomeTopicLink(topic, doc = document, locationLike = window.location) {
+    if (!topic?.id) {
+        return null;
+    }
+
+    const baseUrl = locationLike.href || `${locationLike.origin}${locationLike.pathname}`;
+    for (const link of doc.querySelectorAll('a[href*="/t/"]')) {
+        const parsed = parseTopicUrl(link.getAttribute("href") || link.href, baseUrl);
+        if (parsed?.id === String(topic.id)) {
+            return link;
+        }
+    }
+
+    return null;
+}
+
+function navigateToMainTopicFromHome(topic, options = {}) {
+    const doc = options.doc || document;
+    const locationLike = options.locationLike || window.location;
+    const navigate = options.navigate || (url => window.location.assign(url));
+    const link = findHomeTopicLink(topic, doc, locationLike);
+
+    if (link) {
+        link.scrollIntoView?.({ block: "center", inline: "nearest" });
+        link.removeAttribute?.("target");
+        link.click();
+        return "click";
+    }
+
+    navigate(topic.url);
+    return "assign";
+}
+
+function returnToMainTopicSource(session, options = {}) {
+    const navigate = options.navigate || (url => window.location.assign(url));
+    const historyBack = options.historyBack || (() => window.history.back());
+    if (typeof historyBack === "function") {
+        historyBack();
+        return "back";
+    }
+
+    if (session?.sourceUrl) {
+        navigate(session.sourceUrl);
+        return "assign";
+    }
+
+    return "none";
+}
+
+function isTopicUnavailablePage(doc = typeof document !== "undefined" ? document : null) {
+    const pageText = doc?.body?.textContent || doc?.documentElement?.textContent || "";
+    return TOPIC_UNAVAILABLE_TEXTS.some(text => pageText.includes(text));
+}
+
 function getHomeBrowseButtonLabel(readCount = getReadMainTopicIds().length) {
     return readCount > 0 ? "FlowReader 继续浏览主帖" : "FlowReader 浏览主帖";
 }
@@ -684,10 +853,31 @@ async function handleRouteChange(state = runtimeState, options = {}) {
     }
 
     const isTopicRoute = nextRouteSignature.startsWith("topic:");
+    let topicUnavailable = false;
+    let topicContextUnavailable = false;
     if (isTopicRoute) {
-        await (options.waitForContext ?? waitForPageContext)();
+        try {
+            await (options.waitForContext ?? waitForPageContext)();
+        } catch (error) {
+            topicUnavailable = isTopicUnavailablePage(targetDocument);
+            topicContextUnavailable = !topicUnavailable && isCurrentMainTopicBrowsingSessionRoute(
+                locationLike,
+                options.storageGetter,
+                options.now
+            );
+            if (!topicUnavailable && !topicContextUnavailable) {
+                throw error;
+            }
+        }
+
         const latestContext = (options.syncState ?? syncRuntimeState)();
-        if (!latestContext) {
+        topicUnavailable = topicUnavailable || isTopicUnavailablePage(targetDocument);
+        topicContextUnavailable = topicContextUnavailable || (!latestContext && isCurrentMainTopicBrowsingSessionRoute(
+            locationLike,
+            options.storageGetter,
+            options.now
+        ));
+        if (!latestContext && !topicUnavailable && !topicContextUnavailable) {
             return false;
         }
     } else {
@@ -695,12 +885,32 @@ async function handleRouteChange(state = runtimeState, options = {}) {
     }
 
     cleanupUI(targetDocument);
-    (options.setupUI ?? setupUI)();
+    if (!topicUnavailable && !topicContextUnavailable) {
+        (options.setupUI ?? setupUI)();
+    }
     state.lastRouteSignature = nextRouteSignature;
 
-    if (isTopicRoute && (options.config ?? config).autoStart) {
+    if (isTopicRoute && !topicUnavailable && !topicContextUnavailable && (options.config ?? config).autoStart) {
         await (options.startReading ?? startReading)();
     }
+
+    await (options.continueMainTopics ?? continueMainTopicBrowsingSession)({
+        doc: targetDocument,
+        locationLike,
+        storageGetter: options.storageGetter,
+        storageSetter: options.storageSetter,
+        fetchImpl: options.fetchImpl,
+        timingTimeoutMs: options.timingTimeoutMs,
+        timingRetryDelayMs: options.timingRetryDelayMs,
+        AbortControllerImpl: options.AbortControllerImpl,
+        delayImpl: options.delayImpl,
+        navigate: options.navigate,
+        historyBack: options.historyBack,
+        showStatusImpl: options.showStatusImpl,
+        topicUnavailable,
+        topicContextUnavailable,
+        now: options.now
+    });
 
     return true;
 }
@@ -1372,6 +1582,16 @@ function createTimingHeaders(csrfToken = pageContext?.csrfToken ?? getCsrfToken(
 async function sendMainTopicTiming(currentTopicID, retryCount = 3, options = {}) {
     const fetchImpl = options.fetchImpl || fetch;
     const params = createMainTopicTimingParams(currentTopicID);
+    const timeoutMs = options.timeoutMs ?? MAIN_TOPIC_TIMING_TIMEOUT_MS;
+    const AbortControllerImpl = options.AbortControllerImpl || (
+        typeof AbortController !== "undefined" ? AbortController : null
+    );
+    const controller = AbortControllerImpl && Number.isFinite(timeoutMs) && timeoutMs > 0
+        ? new AbortControllerImpl()
+        : null;
+    const timeoutId = controller
+        ? setTimeout(() => controller.abort(), timeoutMs)
+        : null;
 
     try {
         const response = await fetchImpl(`${currentProtocol}//${currentDomain}/topics/timings`, {
@@ -1380,7 +1600,8 @@ async function sendMainTopicTiming(currentTopicID, retryCount = 3, options = {})
             body: params.toString(),
             method: "POST",
             mode: "cors",
-            credentials: "include"
+            credentials: "include",
+            ...(controller ? { signal: controller.signal } : {})
         });
 
         if (!response.ok) {
@@ -1392,11 +1613,15 @@ async function sendMainTopicTiming(currentTopicID, retryCount = 3, options = {})
         console.error(`浏览主帖 ${currentTopicID} 失败: `, error);
 
         if (retryCount > 0) {
-            await new Promise(r => setTimeout(r, 2000));
+            await new Promise(r => setTimeout(r, options.retryDelayMs ?? 2000));
             return sendMainTopicTiming(currentTopicID, retryCount - 1, options);
         }
 
         return false;
+    } finally {
+        if (timeoutId) {
+            clearTimeout(timeoutId);
+        }
     }
 }
 
@@ -1451,33 +1676,146 @@ async function sendBatch(startId, endId, retryCount = 3) {
     }
 }
 
+// 路由切换后推进主帖浏览状态机：来源页进入话题页，话题页记录主帖后返回来源页。
+async function continueMainTopicBrowsingSession(options = {}) {
+    const now = options.now || Date.now();
+    let session = getMainTopicBrowsingSession(options.storageGetter, now);
+    if (!session) {
+        return false;
+    }
+
+    const doc = options.doc || document;
+    const locationLike = options.locationLike || window.location;
+    const showStatusImpl = options.showStatusImpl || showStatus;
+    const storageSetter = options.storageSetter;
+    const delayImpl = options.delayImpl || (ms => new Promise(resolve => setTimeout(resolve, ms)));
+
+    if (isSupportedHomePage(locationLike)) {
+        if (session.phase === "complete" || session.index >= session.topics.length) {
+            showStatusImpl(
+                `主帖浏览完成：成功 ${session.successCount}，失败 ${session.failedCount}，已记录 ${getReadMainTopicIds(options.storageGetter).length} 个主帖`,
+                session.failedCount > 0 ? "warning" : "success"
+            );
+            clearMainTopicBrowsingSession(storageSetter);
+            return true;
+        }
+
+        const topic = getCurrentMainTopicSessionItem(session);
+        if (!topic) {
+            clearMainTopicBrowsingSession(storageSetter);
+            return false;
+        }
+
+        session = saveMainTopicBrowsingSession({
+            ...session,
+            phase: "topic"
+        }, storageSetter, now);
+        showStatusImpl(`进入主帖 ${session.index + 1} / ${session.topics.length}：${topic.title}`, "success");
+        navigateToMainTopicFromHome(topic, {
+            doc,
+            locationLike,
+            navigate: options.navigate
+        });
+        return true;
+    }
+
+    if (!canExportMarkdown(locationLike)) {
+        return false;
+    }
+
+    const topic = getCurrentMainTopicSessionItem(session);
+    const currentTopicID = getTopicID(locationLike.pathname ?? "");
+    if (!topic || String(topic.id) !== currentTopicID) {
+        return false;
+    }
+
+    const topicUnavailable = Boolean(options.topicUnavailable || isTopicUnavailablePage(doc));
+    const topicContextUnavailable = Boolean(options.topicContextUnavailable);
+    const csrfToken = getCsrfToken(doc);
+    if (topicUnavailable) {
+        showStatusImpl(`主帖可能已被删除或屏蔽，已跳过并返回主页：${topic.title}`, "warning");
+    } else if (topicContextUnavailable) {
+        showStatusImpl(`主帖加载超时，已跳过并返回主页：${topic.title}`, "warning");
+    }
+
+    const success = !topicUnavailable && !topicContextUnavailable && csrfToken
+        ? await sendMainTopicTiming(currentTopicID, 3, {
+            csrfToken,
+            fetchImpl: options.fetchImpl,
+            timeoutMs: options.timingTimeoutMs,
+            retryDelayMs: options.timingRetryDelayMs,
+            AbortControllerImpl: options.AbortControllerImpl
+        })
+        : false;
+    let readTopicIds = getReadMainTopicIds(options.storageGetter);
+
+    if (success) {
+        readTopicIds = saveReadMainTopicIds(
+            mergeReadMainTopicIds(readTopicIds, currentTopicID),
+            storageSetter
+        );
+        session = {
+            ...session,
+            index: session.index + 1,
+            phase: session.index + 1 >= session.topics.length ? "complete" : "returning",
+            successCount: session.successCount + 1,
+            consecutiveFailureCount: 0
+        };
+    } else {
+        session = {
+            ...session,
+            index: session.index + 1,
+            phase: session.index + 1 >= session.topics.length ? "complete" : "returning",
+            failedCount: session.failedCount + 1,
+            consecutiveFailureCount: session.consecutiveFailureCount + 1
+        };
+    }
+
+    if (shouldStopMainTopicBrowsing(session.consecutiveFailureCount)) {
+        showStatusImpl(
+            `连续 ${MAIN_TOPIC_MAX_CONSECUTIVE_FAILURES} 个主帖浏览失败，已停止。成功 ${session.successCount}，失败 ${session.failedCount}，已记录 ${readTopicIds.length} 个主帖。请检查网络或登录状态后重试。`,
+            "error"
+        );
+        clearMainTopicBrowsingSession(storageSetter);
+        returnToMainTopicSource(session, {
+            navigate: options.navigate,
+            historyBack: options.historyBack
+        });
+        return true;
+    }
+
+    saveMainTopicBrowsingSession(session, storageSetter, now);
+    const delay = topicUnavailable || topicContextUnavailable ? 0 : config.baseDelay + getRandomInt(0, config.randomDelayRange);
+    await delayImpl(delay);
+    returnToMainTopicSource(session, {
+        navigate: options.navigate,
+        historyBack: options.historyBack
+    });
+    return true;
+}
+
 // 开始浏览首页可见主帖
 async function startReadingMainTopics(options = {}) {
     syncRuntimeState();
 
     const doc = options.doc || document;
     const locationLike = options.locationLike || window.location;
+    const showStatusImpl = options.showStatusImpl || showStatus;
     if (!isSupportedHomePage(locationLike)) {
-        showStatus("当前页面不支持浏览主帖", "warning");
+        showStatusImpl("当前页面不支持浏览主帖", "warning");
         return;
     }
 
     const topics = collectHomeTopicItems(doc, locationLike);
     if (topics.length === 0) {
-        showStatus("当前页面未找到可浏览主帖", "warning");
+        showStatusImpl("当前页面未找到可浏览主帖", "warning");
         return;
     }
 
     let readTopicIds = getReadMainTopicIds(options.storageGetter);
     const unreadTopics = filterUnreadHomeTopicItems(topics, readTopicIds);
     if (unreadTopics.length === 0) {
-        showStatus("当前已加载主帖都已浏览，请向下滚动加载更多主帖后继续", "warning");
-        return;
-    }
-
-    const csrfToken = getCsrfToken(doc);
-    if (!csrfToken) {
-        showStatus("未找到 CSRF 信息，暂时无法浏览主帖", "error");
+        showStatusImpl("当前已加载主帖都已浏览，请向下滚动加载更多主帖后继续", "warning");
         return;
     }
 
@@ -1485,52 +1823,26 @@ async function startReadingMainTopics(options = {}) {
     if (button) {
         button.disabled = true;
     }
-    setButtonLabel(button, "浏览中...");
-
-    let successCount = 0;
-    let failedCount = 0;
-    let consecutiveFailureCount = 0;
-    let stoppedByConsecutiveFailures = false;
+    setButtonLabel(button, "进入主帖...");
 
     try {
-        for (let index = 0; index < unreadTopics.length; index++) {
-            const topic = unreadTopics[index];
-            showStatus(`浏览主帖 ${index + 1} / ${unreadTopics.length}：${topic.title}`, "success");
-
-            const success = await sendMainTopicTiming(topic.id, 3, {
-                csrfToken,
-                fetchImpl: options.fetchImpl
-            });
-
-            if (success) {
-                successCount++;
-                consecutiveFailureCount = 0;
-                readTopicIds = saveReadMainTopicIds(
-                    mergeReadMainTopicIds(readTopicIds, topic.id),
-                    options.storageSetter
-                );
-                const delay = config.baseDelay + getRandomInt(0, config.randomDelayRange);
-                await new Promise(r => setTimeout(r, delay));
-            } else {
-                failedCount++;
-                consecutiveFailureCount++;
-                if (shouldStopMainTopicBrowsing(consecutiveFailureCount)) {
-                    stoppedByConsecutiveFailures = true;
-                    break;
-                }
-            }
+        const session = createMainTopicBrowsingSession(
+            unreadTopics,
+            locationLike.href || `${locationLike.origin}${locationLike.pathname}`,
+            options.now || Date.now()
+        );
+        if (!session) {
+            showStatusImpl("主帖浏览会话创建失败，请刷新页面后重试", "error");
+            return;
         }
 
-        if (stoppedByConsecutiveFailures) {
-            showStatus(
-                `连续 ${MAIN_TOPIC_MAX_CONSECUTIVE_FAILURES} 个主帖浏览失败，已停止。成功 ${successCount}，失败 ${failedCount}，已记录 ${readTopicIds.length} 个主帖。请检查网络或登录状态后重试。`,
-                "error"
-            );
-        } else if (failedCount > 0) {
-            showStatus(`主帖浏览完成：成功 ${successCount}，失败 ${failedCount}，已记录 ${readTopicIds.length} 个主帖`, "warning");
-        } else {
-            showStatus(`本次主帖浏览完成，共 ${successCount} 个，已记录 ${readTopicIds.length} 个主帖`, "success");
-        }
+        saveMainTopicBrowsingSession(session, options.storageSetter, options.now || Date.now());
+        showStatusImpl(`进入主帖 1 / ${unreadTopics.length}：${unreadTopics[0].title}`, "success");
+        navigateToMainTopicFromHome(unreadTopics[0], {
+            doc,
+            locationLike,
+            navigate: options.navigate
+        });
     } finally {
         if (button) {
             button.disabled = false;
@@ -1571,23 +1883,33 @@ if (typeof module !== "undefined" && module.exports) {
     module.exports = {
         buildMarkdownDocument,
         canExportMarkdown,
+        continueMainTopicBrowsingSession,
         collectMainPostMarkdown,
         collectHomeTopicItems,
         cleanupScriptUI,
+        createMainTopicBrowsingSession,
         createMainTopicTimingParams,
+        findHomeTopicLink,
         filterUnreadHomeTopicItems,
+        getCurrentMainTopicSessionItem,
         getHomeBrowseButtonLabel,
         getRouteSignature,
         getPageContext,
         handleRouteChange,
+        isCurrentMainTopicBrowsingSessionRoute,
+        isTopicUnavailablePage,
         isSupportedHomePage,
         mergeReadMainTopicIds,
+        navigateToMainTopicFromHome,
         normalizeMainTopicIdList,
+        normalizeMainTopicBrowsingSession,
         parseTopicUrl,
         pickMainPost,
         parseRepliesInfo,
+        returnToMainTopicSource,
         resolveSettingsMountPoint,
         sanitizeFileName,
+        sendMainTopicTiming,
         shouldStopMainTopicBrowsing
     };
 }
