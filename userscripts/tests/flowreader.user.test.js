@@ -31,6 +31,7 @@ const {
     resolveSettingsMountPoint,
     sanitizeFileName,
     sendMainTopicTiming,
+    stopMainTopicBrowsingSession,
     shouldStopMainTopicBrowsing
 } = require("../flowreader.user.js");
 
@@ -325,6 +326,92 @@ test("过期主帖浏览会话应被丢弃", () => {
         }, 1000 + 61 * 60 * 1000),
         null
     );
+});
+
+test("停止本轮主帖浏览应清空会话并保留已浏览进度", async () => {
+    const store = new Map();
+    const storageGetter = (key, defaultValue) => store.has(key) ? store.get(key) : defaultValue;
+    const storageSetter = (key, value) => store.set(key, value);
+    const statuses = [];
+    const navigated = [];
+    storageSetter("flowreader.mainTopicBrowsingSession", JSON.stringify({
+        active: true,
+        sourceUrl: "https://linux.do/latest",
+        topics: [{ id: "1912001", url: "https://linux.do/t/topic/1912001/1", title: "卡住主题" }],
+        index: 0,
+        phase: "topic",
+        successCount: 0,
+        failedCount: 0,
+        consecutiveFailureCount: 0,
+        startedAt: 1000,
+        updatedAt: 1000
+    }));
+    storageSetter("flowreader.mainTopicReadIds", JSON.stringify(["1912000"]));
+
+    const stopped = stopMainTopicBrowsingSession({
+        storageGetter,
+        storageSetter,
+        showStatusImpl: (message, type) => statuses.push({ message, type }),
+        now: 2000
+    });
+    const handled = await continueMainTopicBrowsingSession({
+        doc: createFakeDocument({}, { 'a[href*="/t/"]': [] }),
+        locationLike: { hostname: "linux.do", pathname: "/latest" },
+        storageGetter,
+        storageSetter,
+        navigate: url => navigated.push(url),
+        now: 2000
+    });
+
+    assert.equal(stopped, true);
+    assert.equal(handled, false);
+    assert.deepEqual(navigated, []);
+    assert.equal(storageGetter("flowreader.mainTopicBrowsingSession", "missing"), "");
+    assert.equal(storageGetter("flowreader.mainTopicReadIds", "[]"), JSON.stringify(["1912000"]));
+    assert.deepEqual(statuses, [{
+        message: "已停止本轮主帖浏览，已记录 1 个主帖",
+        type: "success"
+    }]);
+});
+
+test("用户从卡住主帖手动返回首页时应停止本轮浏览", async () => {
+    const store = new Map();
+    const storageGetter = (key, defaultValue) => store.has(key) ? store.get(key) : defaultValue;
+    const storageSetter = (key, value) => store.set(key, value);
+    const statuses = [];
+    const navigated = [];
+    storageSetter("flowreader.mainTopicBrowsingSession", JSON.stringify({
+        active: true,
+        sourceUrl: "https://linux.do/latest",
+        topics: [{ id: "1912001", url: "https://linux.do/t/topic/1912001/1", title: "卡住主题" }],
+        index: 0,
+        phase: "topic",
+        successCount: 0,
+        failedCount: 0,
+        consecutiveFailureCount: 0,
+        startedAt: 1000,
+        updatedAt: 1000
+    }));
+    storageSetter("flowreader.mainTopicReadIds", JSON.stringify(["1912000"]));
+
+    const handled = await continueMainTopicBrowsingSession({
+        doc: createFakeDocument({}, { 'a[href*="/t/"]': [] }),
+        locationLike: { hostname: "linux.do", pathname: "/latest" },
+        storageGetter,
+        storageSetter,
+        navigate: url => navigated.push(url),
+        showStatusImpl: (message, type) => statuses.push({ message, type }),
+        now: 2000
+    });
+
+    assert.equal(handled, true);
+    assert.deepEqual(navigated, []);
+    assert.equal(storageGetter("flowreader.mainTopicBrowsingSession", "missing"), "");
+    assert.equal(storageGetter("flowreader.mainTopicReadIds", "[]"), JSON.stringify(["1912000"]));
+    assert.deepEqual(statuses, [{
+        message: "检测到已手动返回首页，已停止本轮主帖浏览，已记录 1 个主帖",
+        type: "warning"
+    }]);
 });
 
 test("当前 Tab 浏览应优先点击首页中匹配的主帖链接", () => {

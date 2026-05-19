@@ -224,13 +224,14 @@ const STYLE_TEXT = `
 }
 
 .userscript-rb .rb-fab-menu-item {
+    box-sizing: border-box !important;
     width: 100% !important;
     min-height: 38px !important;
     padding: 0 14px !important;
-    border: 0 !important;
+    border: 1px solid var(--primary-low) !important;
     border-radius: 999px !important;
-    background: var(--tertiary) !important;
-    color: #fff !important;
+    background: var(--secondary) !important;
+    color: var(--primary) !important;
     cursor: pointer !important;
     font-size: 13px !important;
     font-weight: 600 !important;
@@ -299,12 +300,6 @@ const STYLE_TEXT = `
     min-width: 112px !important;
 }
 
-.userscript-rb .rb-home-reset-button {
-    background: var(--secondary) !important;
-    color: var(--primary) !important;
-    border: 1px solid var(--primary-low) !important;
-}
-
 @media (prefers-color-scheme: dark) {
     .userscript-rb .rb-overlay {
         background: rgba(0, 0, 0, 0.95) !important;
@@ -344,7 +339,9 @@ const SCRIPT_UI_SELECTORS = [
     '[data-flowreader-role="float-button-wrapper"]',
     '[data-flowreader-role="home-main-topics-wrapper"]',
     '[data-flowreader-role="home-main-topics-button"]',
-    '[data-flowreader-role="home-main-topics-reset-button"]'
+    '[data-flowreader-role="home-main-topics-stop-button"]',
+    '[data-flowreader-role="home-main-topics-reset-button"]',
+    '[data-flowreader-role="topic-main-topics-stop-button"]'
 ];
 
 const MAIN_TOPIC_PROGRESS_KEY = "flowreader.mainTopicReadIds";
@@ -706,6 +703,35 @@ function clearMainTopicBrowsingSession(storageSetter = typeof GM_setValue === "f
     }
 }
 
+function stopMainTopicBrowsingSession(options = {}) {
+    const storageGetter = options.storageGetter ?? (typeof GM_getValue === "function" ? GM_getValue : null);
+    const storageSetter = options.storageSetter ?? (typeof GM_setValue === "function" ? GM_setValue : null);
+    const showStatusImpl = options.showStatusImpl ?? (typeof showStatus === "function" ? showStatus : null);
+    const doc = options.doc ?? (typeof document !== "undefined" ? document : null);
+    const now = options.now ?? Date.now();
+    const session = getMainTopicBrowsingSession(storageGetter, now);
+
+    clearMainTopicBrowsingSession(storageSetter);
+
+    const readTopicCount = getReadMainTopicIds(storageGetter).length;
+    const button = doc?.querySelector?.('[data-flowreader-role="home-main-topics-button"]');
+    if (button) {
+        button.title = `浏览当前页面可见主帖，已记录 ${readTopicCount} 个主帖`;
+        setButtonLabel(button, getHomeBrowseButtonLabel(readTopicCount));
+    }
+
+    if (showStatusImpl) {
+        showStatusImpl(
+            session
+                ? `已停止本轮主帖浏览，已记录 ${readTopicCount} 个主帖`
+                : `当前没有正在进行的主帖浏览，已记录 ${readTopicCount} 个主帖`,
+            session ? "success" : "warning"
+        );
+    }
+
+    return Boolean(session);
+}
+
 function getCurrentMainTopicSessionItem(session) {
     return session?.topics?.[session.index] ?? null;
 }
@@ -1018,6 +1044,7 @@ function bindFloatMenu(wrapper) {
     const trigger = wrapper.querySelector(".rb-float-button");
     const menu = wrapper.querySelector(".rb-fab-menu");
     const exportButton = wrapper.querySelector('[data-flowreader-action="export-markdown"]');
+    const stopButton = wrapper.querySelector('[data-flowreader-action="stop-main-topic-session"]');
 
     trigger.addEventListener("click", startReading);
     bindFabMenuInteractions(wrapper, trigger, menu);
@@ -1026,11 +1053,17 @@ function bindFloatMenu(wrapper) {
         setFabMenuOpen(wrapper, false);
         exportMainPostMarkdown();
     });
+
+    stopButton?.addEventListener("click", () => {
+        setFabMenuOpen(wrapper, false);
+        stopMainTopicBrowsingSession();
+    });
 }
 
 function bindHomeMainTopicsMenu(wrapper) {
     const trigger = wrapper.querySelector('[data-flowreader-role="home-main-topics-button"]');
     const menu = wrapper.querySelector(".rb-fab-menu");
+    const stopButton = wrapper.querySelector('[data-flowreader-action="stop-main-topic-session"]');
     const resetButton = wrapper.querySelector('[data-flowreader-action="reset-main-topic-progress"]');
     if (!trigger) {
         return;
@@ -1040,6 +1073,11 @@ function bindHomeMainTopicsMenu(wrapper) {
         button: trigger
     }));
     bindFabMenuInteractions(wrapper, trigger, menu);
+
+    stopButton?.addEventListener("click", () => {
+        setFabMenuOpen(wrapper, false);
+        stopMainTopicBrowsingSession();
+    });
 
     resetButton?.addEventListener("click", () => {
         setFabMenuOpen(wrapper, false);
@@ -1080,6 +1118,14 @@ function setupHomeUI() {
     menu.setAttribute("role", "menu");
     menu.setAttribute("aria-label", "FlowReader 主帖操作");
 
+    const stopButton = document.createElement("button");
+    stopButton.className = "rb-fab-menu-item rb-home-stop-button";
+    stopButton.type = "button";
+    stopButton.setAttribute("role", "menuitem");
+    stopButton.dataset.flowreaderRole = "home-main-topics-stop-button";
+    stopButton.dataset.flowreaderAction = "stop-main-topic-session";
+    stopButton.textContent = "停止本轮";
+
     const resetButton = document.createElement("button");
     resetButton.className = "rb-fab-menu-item rb-home-reset-button";
     resetButton.type = "button";
@@ -1089,6 +1135,7 @@ function setupHomeUI() {
     resetButton.textContent = "重置进度";
 
     controls.appendChild(browseMainTopicsButton);
+    menu.appendChild(stopButton);
     menu.appendChild(resetButton);
     controls.appendChild(menu);
     wrapper.appendChild(controls);
@@ -1119,6 +1166,7 @@ function setupTopicUI() {
     const exportMenu = hasExportAction
         ? `<div id="flowreader-fab-menu" class="rb-fab-menu" role="menu" aria-label="FlowReader 快捷操作">
             <button class="rb-fab-menu-item" type="button" role="menuitem" data-flowreader-action="export-markdown">导出 Markdown</button>
+            <button class="rb-fab-menu-item" type="button" role="menuitem" data-flowreader-role="topic-main-topics-stop-button" data-flowreader-action="stop-main-topic-session">停止本轮</button>
         </div>`
         : "";
 
@@ -1691,6 +1739,16 @@ async function continueMainTopicBrowsingSession(options = {}) {
     const delayImpl = options.delayImpl || (ms => new Promise(resolve => setTimeout(resolve, ms)));
 
     if (isSupportedHomePage(locationLike)) {
+        if (session.phase === "topic") {
+            const readTopicCount = getReadMainTopicIds(options.storageGetter).length;
+            showStatusImpl(
+                `检测到已手动返回首页，已停止本轮主帖浏览，已记录 ${readTopicCount} 个主帖`,
+                "warning"
+            );
+            clearMainTopicBrowsingSession(storageSetter);
+            return true;
+        }
+
         if (session.phase === "complete" || session.index >= session.topics.length) {
             showStatusImpl(
                 `主帖浏览完成：成功 ${session.successCount}，失败 ${session.failedCount}，已记录 ${getReadMainTopicIds(options.storageGetter).length} 个主帖`,
@@ -1910,6 +1968,7 @@ if (typeof module !== "undefined" && module.exports) {
         resolveSettingsMountPoint,
         sanitizeFileName,
         sendMainTopicTiming,
+        stopMainTopicBrowsingSession,
         shouldStopMainTopicBrowsing
     };
 }
