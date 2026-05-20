@@ -368,6 +368,11 @@ const TOPIC_UNAVAILABLE_TEXTS = [
     "抱歉，我们无法加载该话题",
     "Sorry, we couldn't load that topic"
 ];
+const MAIN_POST_SELECTORS = [
+    "#post_1",
+    '[data-post-number="1"]',
+    ".topic-post"
+];
 
 // 默认配置
 const DEFAULT_CONFIG = {
@@ -464,15 +469,30 @@ function getPageContext(doc = document, locationLike = window.location) {
     const repliesElement = doc.querySelector(".timeline-replies");
     const parsedReplies = parseRepliesInfo(repliesElement?.textContent?.trim() ?? "");
     const csrfToken = getCsrfToken(doc);
+    const currentTopicID = getTopicID(locationLike.pathname ?? "");
 
-    if (!parsedReplies || !csrfToken) {
+    if (!csrfToken || !currentTopicID) {
         return null;
+    }
+
+    if (!parsedReplies) {
+        const hasMainPost = MAIN_POST_SELECTORS.some(selector => doc.querySelector(selector));
+        if (!hasMainPost) {
+            return null;
+        }
+
+        return {
+            currentPosition: 1,
+            totalReplies: 1,
+            csrfToken,
+            topicID: currentTopicID
+        };
     }
 
     return {
         ...parsedReplies,
         csrfToken,
-        topicID: getTopicID(locationLike.pathname ?? "")
+        topicID: currentTopicID
     };
 }
 
@@ -789,17 +809,24 @@ function navigateToMainTopicFromHome(topic, options = {}) {
     return "assign";
 }
 
+function scheduleMainTopicNavigationChecks(scheduleRouteCheck = scheduleRouteChangeCheck, scheduler = setTimeout) {
+    // Discourse 偶尔会复用缓存/历史状态，主动补查可避免主帖状态机漏跑。
+    for (const delay of [250, 1000, 3000]) {
+        scheduler(scheduleRouteCheck, delay);
+    }
+}
+
 function returnToMainTopicSource(session, options = {}) {
     const navigate = options.navigate || (url => window.location.assign(url));
     const historyBack = options.historyBack || (() => window.history.back());
-    if (typeof historyBack === "function") {
-        historyBack();
-        return "back";
-    }
-
     if (session?.sourceUrl) {
         navigate(session.sourceUrl);
         return "assign";
+    }
+
+    if (typeof historyBack === "function") {
+        historyBack();
+        return "back";
     }
 
     return "none";
@@ -1873,7 +1900,7 @@ async function continueMainTopicBrowsingSession(options = {}) {
 
 // 开始浏览首页可见主帖
 async function startReadingMainTopics(options = {}) {
-    syncRuntimeState();
+    (options.syncState ?? syncRuntimeState)();
 
     const doc = options.doc || document;
     const locationLike = options.locationLike || window.location;
@@ -1920,6 +1947,7 @@ async function startReadingMainTopics(options = {}) {
             locationLike,
             navigate: options.navigate
         });
+        scheduleMainTopicNavigationChecks(options.scheduleRouteCheck, options.scheduler);
     } finally {
         if (button) {
             button.disabled = false;
@@ -1987,6 +2015,7 @@ if (typeof module !== "undefined" && module.exports) {
         resolveSettingsMountPoint,
         sanitizeFileName,
         sendMainTopicTiming,
+        startReadingMainTopics,
         stopMainTopicBrowsingSession,
         shouldStopMainTopicBrowsing
     };

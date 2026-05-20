@@ -31,6 +31,7 @@ const {
     resolveSettingsMountPoint,
     sanitizeFileName,
     sendMainTopicTiming,
+    startReadingMainTopics,
     stopMainTopicBrowsingSession,
     shouldStopMainTopicBrowsing
 } = require("../flowreader.user.js");
@@ -135,6 +136,27 @@ test("可以从页面中提取阅读所需上下文", () => {
     );
 });
 
+test("零跟帖话题缺少时间线时，可通过主帖 DOM 提取上下文", () => {
+    const doc = createFakeDocument({
+        "#post_1": {},
+        'meta[name="csrf-token"]': {
+            getAttribute(name) {
+                return name === "content" ? "token-123" : null;
+            }
+        }
+    });
+
+    assert.deepEqual(
+        getPageContext(doc, { pathname: "/t/topic/1911755/1" }),
+        {
+            currentPosition: 1,
+            totalReplies: 1,
+            csrfToken: "token-123",
+            topicID: "1911755"
+        }
+    );
+});
+
 test("不同话题路由应生成新的签名", () => {
     assert.equal(
         getRouteSignature({ pathname: "/t/topic/1912000/1" }),
@@ -182,6 +204,39 @@ test("相同话题路由若命中当前主帖会话，仍应推进主帖状态�
 
     assert.equal(handled, true);
     assert.deepEqual(calls, ["cleanup", "setup", "continue"]);
+});
+
+test("零跟帖话题有主帖 DOM 时路由处理不应走加载超时兜底", async () => {
+    const store = new Map();
+    const storageGetter = (key, defaultValue) => store.has(key) ? store.get(key) : defaultValue;
+    const calls = [];
+    storageGetter("flowreader.mainTopicBrowsingSession", "");
+    const doc = createFakeDocument({
+        "#post_1": {},
+        'meta[name="csrf-token"]': {
+            getAttribute(name) {
+                return name === "content" ? "csrf-123" : null;
+            }
+        }
+    });
+    const locationLike = { hostname: "linux.do", pathname: "/t/topic/1912000/1" };
+
+    const handled = await handleRouteChange({ lastRouteSignature: "home:/latest" }, {
+        doc,
+        locationLike,
+        storageGetter,
+        waitForContext: async () => getPageContext(doc, locationLike),
+        syncState: () => getPageContext(doc, locationLike),
+        cleanupUI: () => calls.push("cleanup"),
+        setupUI: () => calls.push("setup"),
+        startReading: async () => calls.push("start"),
+        continueMainTopics: async options => calls.push(`continue:${options.topicContextUnavailable}`),
+        config: { autoStart: false },
+        now: 2000
+    });
+
+    assert.equal(handled, true);
+    assert.deepEqual(calls, ["cleanup", "setup", "continue:false"]);
 });
 
 test("LinuxDo 首页应生成独立的主帖浏览路由签名", () => {
@@ -501,6 +556,50 @@ test("找不到首页链接时应回退为当前 Tab 直接跳转", () => {
     assert.deepEqual(navigated, ["https://linux.do/t/topic/1912001/1"]);
 });
 
+test("首页启动主帖浏览后应主动补充路由检查", async () => {
+    const store = new Map();
+    const storageGetter = (key, defaultValue) => store.has(key) ? store.get(key) : defaultValue;
+    const storageSetter = (key, value) => store.set(key, value);
+    const scheduledDelays = [];
+    const link = createFakeAnchor("/t/topic/1912000/1", "缓存过的主题");
+    const button = {
+        disabled: false,
+        title: "",
+        textContent: "",
+        querySelector() {
+            return null;
+        }
+    };
+    const doc = createFakeDocument({
+        '[data-flowreader-role="home-main-topics-button"]': button
+    }, {
+        'a[href*="/t/"]': [link]
+    });
+
+    await startReadingMainTopics({
+        doc,
+        locationLike: {
+            hostname: "linux.do",
+            href: "https://linux.do/latest",
+            origin: "https://linux.do",
+            pathname: "/latest"
+        },
+        storageGetter,
+        storageSetter,
+        scheduler: (callback, delay) => {
+            scheduledDelays.push(delay);
+            assert.equal(typeof callback, "function");
+        },
+        scheduleRouteCheck: () => {},
+        showStatusImpl: () => {},
+        syncState: () => null,
+        now: 2000
+    });
+
+    assert.deepEqual(link.calls, ["scroll", "remove:target", "click"]);
+    assert.deepEqual(scheduledDelays, [250, 1000, 3000]);
+});
+
 test("话题页会话应记录主帖并返回来源页继续", async () => {
     const store = new Map();
     const storageGetter = (key, defaultValue) => store.has(key) ? store.get(key) : defaultValue;
@@ -519,6 +618,7 @@ test("话题页会话应记录主帖并返回来源页继续", async () => {
     }));
 
     const historyCalls = [];
+    const navigateCalls = [];
     const fetchCalls = [];
     const doc = createFakeDocument({
         'meta[name="csrf-token"]': {
@@ -542,17 +642,78 @@ test("话题页会话应记录主帖并返回来源页继续", async () => {
         },
         delayImpl: async () => {},
         historyBack: () => historyCalls.push("back"),
+        navigate: url => navigateCalls.push(url),
         now: 2000
     });
 
     assert.equal(handled, true);
-    assert.deepEqual(historyCalls, ["back"]);
+    assert.deepEqual(historyCalls, []);
+    assert.deepEqual(navigateCalls, ["https://linux.do/latest"]);
     assert.equal(fetchCalls.length, 1);
     assert.match(storageGetter("flowreader.mainTopicReadIds", ""), /1912000/);
     assert.equal(
         normalizeMainTopicBrowsingSession(storageGetter("flowreader.mainTopicBrowsingSession", ""), 2000).phase,
         "complete"
     );
+});
+
+test("零跟帖话题缺少时间线时仍应记录主帖并返回来源页", async () => {
+    const store = new Map();
+    const storageGetter = (key, defaultValue) => store.has(key) ? store.get(key) : defaultValue;
+    const storageSetter = (key, value) => store.set(key, value);
+    storageSetter("flowreader.mainTopicBrowsingSession", JSON.stringify({
+        active: true,
+        sourceUrl: "https://linux.do/latest",
+        topics: [{ id: "1912000", url: "https://linux.do/t/topic/1912000/1", title: "零跟帖主题" }],
+        index: 0,
+        phase: "topic",
+        successCount: 0,
+        failedCount: 0,
+        consecutiveFailureCount: 0,
+        startedAt: 1000,
+        updatedAt: 1000
+    }));
+
+    const navigateCalls = [];
+    const fetchCalls = [];
+    const doc = createFakeDocument({
+        "#post_1": {},
+        'meta[name="csrf-token"]': {
+            getAttribute(name) {
+                return name === "content" ? "csrf-123" : null;
+            }
+        }
+    });
+
+    const handled = await continueMainTopicBrowsingSession({
+        doc,
+        locationLike: {
+            hostname: "linux.do",
+            pathname: "/t/topic/1912000/1"
+        },
+        storageGetter,
+        storageSetter,
+        fetchImpl: async (url, options) => {
+            fetchCalls.push({ url, options });
+            return { ok: true };
+        },
+        delayImpl: async () => {},
+        navigate: url => navigateCalls.push(url),
+        historyBack: () => assert.fail("有本轮来源页时不应回退到浏览器历史"),
+        now: 2000
+    });
+
+    const session = normalizeMainTopicBrowsingSession(
+        storageGetter("flowreader.mainTopicBrowsingSession", ""),
+        2000
+    );
+    assert.equal(handled, true);
+    assert.equal(fetchCalls.length, 1);
+    assert.deepEqual(navigateCalls, ["https://linux.do/latest"]);
+    assert.match(storageGetter("flowreader.mainTopicReadIds", ""), /1912000/);
+    assert.equal(session.successCount, 1);
+    assert.equal(session.failedCount, 0);
+    assert.equal(session.phase, "complete");
 });
 
 test("不可用话题页应被识别并跳过返回主页", async () => {
@@ -575,6 +736,7 @@ test("不可用话题页应被识别并跳过返回主页", async () => {
     const doc = createFakeDocument({}, {}, "抱歉，我们无法加载该话题，可能是由于连接问题。请重试。");
     const statuses = [];
     const historyCalls = [];
+    const navigateCalls = [];
     const fetchCalls = [];
     const delays = [];
 
@@ -593,6 +755,7 @@ test("不可用话题页应被识别并跳过返回主页", async () => {
         },
         delayImpl: async delay => delays.push(delay),
         historyBack: () => historyCalls.push("back"),
+        navigate: url => navigateCalls.push(url),
         showStatusImpl: (message, type) => statuses.push({ message, type }),
         now: 2000
     });
@@ -604,7 +767,8 @@ test("不可用话题页应被识别并跳过返回主页", async () => {
     assert.equal(handled, true);
     assert.deepEqual(fetchCalls, []);
     assert.deepEqual(delays, [0]);
-    assert.deepEqual(historyCalls, ["back"]);
+    assert.deepEqual(historyCalls, []);
+    assert.deepEqual(navigateCalls, ["https://linux.do/latest"]);
     assert.equal(session.failedCount, 1);
     assert.equal(session.phase, "complete");
     assert.equal(storageGetter("flowreader.mainTopicReadIds", "[]"), "[]");
@@ -631,6 +795,7 @@ test("话题上下文加载超时应跳过当前主帖并返回主页", async ()
 
     const statuses = [];
     const historyCalls = [];
+    const navigateCalls = [];
     const fetchCalls = [];
     const handled = await continueMainTopicBrowsingSession({
         doc: createFakeDocument({}, {}),
@@ -647,6 +812,7 @@ test("话题上下文加载超时应跳过当前主帖并返回主页", async ()
         },
         delayImpl: async delay => assert.equal(delay, 0),
         historyBack: () => historyCalls.push("back"),
+        navigate: url => navigateCalls.push(url),
         showStatusImpl: (message, type) => statuses.push({ message, type }),
         now: 2000
     });
@@ -657,7 +823,8 @@ test("话题上下文加载超时应跳过当前主帖并返回主页", async ()
     );
     assert.equal(handled, true);
     assert.deepEqual(fetchCalls, []);
-    assert.deepEqual(historyCalls, ["back"]);
+    assert.deepEqual(historyCalls, []);
+    assert.deepEqual(navigateCalls, ["https://linux.do/latest"]);
     assert.equal(session.failedCount, 1);
     assert.equal(session.phase, "complete");
     assert.equal(statuses[0].type, "warning");
@@ -700,10 +867,22 @@ test("来源页完成态会清空主帖浏览会话", async () => {
     assert.equal(storageGetter("flowreader.mainTopicBrowsingSession", "missing"), "");
 });
 
-test("返回来源页应优先使用浏览器历史", () => {
+test("返回来源页应优先使用本轮来源 URL", () => {
     const calls = [];
     assert.equal(
         returnToMainTopicSource({ sourceUrl: "https://linux.do/latest" }, {
+            historyBack: () => calls.push("back"),
+            navigate: url => calls.push(url)
+        }),
+        "assign"
+    );
+    assert.deepEqual(calls, ["https://linux.do/latest"]);
+});
+
+test("缺少本轮来源 URL 时才回退使用浏览器历史", () => {
+    const calls = [];
+    assert.equal(
+        returnToMainTopicSource({}, {
             historyBack: () => calls.push("back"),
             navigate: url => calls.push(url)
         }),
