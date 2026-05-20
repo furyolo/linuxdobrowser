@@ -253,6 +253,20 @@ const STYLE_TEXT = `
     transform: translateZ(0) scale(0.98) !important;
 }
 
+.userscript-rb .rb-topic-fab-menu {
+    display: grid !important;
+    gap: 8px !important;
+    justify-items: end !important;
+    min-width: 0 !important;
+    width: max-content !important;
+}
+
+.userscript-rb .rb-topic-fab-menu .rb-fab-menu-item {
+    width: max-content !important;
+    min-width: 0 !important;
+    padding: 0 12px !important;
+}
+
 .userscript-rb .rb-home-main-topics-button {
     min-height: 38px !important;
     padding: 0 14px !important;
@@ -874,11 +888,16 @@ async function handleRouteChange(state = runtimeState, options = {}) {
         return false;
     }
 
-    if (state.lastRouteSignature === nextRouteSignature) {
+    const isTopicRoute = nextRouteSignature.startsWith("topic:");
+    const shouldContinueSameTopicSession = isTopicRoute && isCurrentMainTopicBrowsingSessionRoute(
+        locationLike,
+        options.storageGetter,
+        options.now
+    );
+    if (state.lastRouteSignature === nextRouteSignature && !shouldContinueSameTopicSession) {
         return false;
     }
 
-    const isTopicRoute = nextRouteSignature.startsWith("topic:");
     let topicUnavailable = false;
     let topicContextUnavailable = false;
     if (isTopicRoute) {
@@ -1164,9 +1183,9 @@ function setupTopicUI() {
         ? 'aria-haspopup="menu" aria-expanded="false" aria-controls="flowreader-fab-menu"'
         : "";
     const exportMenu = hasExportAction
-        ? `<div id="flowreader-fab-menu" class="rb-fab-menu" role="menu" aria-label="FlowReader 快捷操作">
-            <button class="rb-fab-menu-item" type="button" role="menuitem" data-flowreader-action="export-markdown">导出 Markdown</button>
+        ? `<div id="flowreader-fab-menu" class="rb-fab-menu rb-topic-fab-menu" role="menu" aria-label="FlowReader 快捷操作">
             <button class="rb-fab-menu-item" type="button" role="menuitem" data-flowreader-role="topic-main-topics-stop-button" data-flowreader-action="stop-main-topic-session">停止本轮</button>
+            <button class="rb-fab-menu-item" type="button" role="menuitem" data-flowreader-action="export-markdown">导出 Markdown</button>
         </div>`
         : "";
 

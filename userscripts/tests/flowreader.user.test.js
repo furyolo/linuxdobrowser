@@ -142,6 +142,48 @@ test("不同话题路由应生成新的签名", () => {
     );
 });
 
+test("相同话题路由若命中当前主帖会话，仍应推进主帖状态机", async () => {
+    const store = new Map();
+    const storageGetter = (key, defaultValue) => store.has(key) ? store.get(key) : defaultValue;
+    const storageSetter = (key, value) => store.set(key, value);
+    const calls = [];
+    storageSetter("flowreader.mainTopicBrowsingSession", JSON.stringify({
+        active: true,
+        sourceUrl: "https://linux.do/latest",
+        topics: [{ id: "1912000", url: "https://linux.do/t/topic/1912000/1", title: "重复进入主题" }],
+        index: 0,
+        phase: "topic",
+        successCount: 0,
+        failedCount: 0,
+        consecutiveFailureCount: 0,
+        startedAt: 1000,
+        updatedAt: 1000
+    }));
+
+    const handled = await handleRouteChange({ lastRouteSignature: "topic:1912000" }, {
+        doc: createFakeDocument({
+            ".timeline-replies": { textContent: " 1 / 19 " },
+            'meta[name="csrf-token"]': {
+                getAttribute(name) {
+                    return name === "content" ? "csrf-123" : null;
+                }
+            }
+        }),
+        locationLike: { hostname: "linux.do", pathname: "/t/topic/1912000/1" },
+        storageGetter,
+        waitForContext: async () => ({ currentPosition: 1, totalReplies: 19, csrfToken: "csrf-123", topicID: "1912000" }),
+        syncState: () => ({ currentPosition: 1, totalReplies: 19, csrfToken: "csrf-123", topicID: "1912000" }),
+        cleanupUI: () => calls.push("cleanup"),
+        setupUI: () => calls.push("setup"),
+        continueMainTopics: async () => calls.push("continue"),
+        config: { autoStart: false },
+        now: 2000
+    });
+
+    assert.equal(handled, true);
+    assert.deepEqual(calls, ["cleanup", "setup", "continue"]);
+});
+
 test("LinuxDo 首页应生成独立的主帖浏览路由签名", () => {
     assert.equal(
         getRouteSignature({ hostname: "linux.do", pathname: "/" }),
