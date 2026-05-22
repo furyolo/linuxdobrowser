@@ -67,7 +67,7 @@ uv run use_system_user.py
 - `flowreader.user.js`：论坛手动阅读辅助；在 Linux.do 首页提供“浏览主帖”悬浮按钮，可一键浏览当前页面可见主帖并跳过已浏览主帖，悬停或聚焦后可展开“重置进度”快捷操作；在话题详情页提供“浏览跟帖”浮动按钮，悬停或聚焦后可展开“导出 Markdown”快捷操作。
 - `summarizeForumThread.user.js`：Linux.do 帖子总结辅助。
 
-安装 `flowreader.user.js` 后，打开 `https://linux.do/` 或 `https://linux.do/latest` 可点击右侧“浏览主帖”悬浮按钮浏览当前页面可见主帖；向下滚动加载更多主帖后再次点击，会从未浏览的主帖继续。主帖浏览进度最多保留最近 `20000` 个 topic id，悬停或键盘聚焦“浏览主帖”按钮即可看到“重置进度”并清空已浏览记录。打开 `https://linux.do/t/topic/...` 形式的话题详情页，可使用右侧 FlowReader 浮动按钮浏览跟帖。悬停或键盘聚焦右侧按钮即可看到“导出 Markdown”；脚本只导出 `post_number = 1` 的主帖，不包含跟帖，文件正文保持 Discourse API 返回的 `raw` 内容，文件头附带来源、标题、作者和时间等元数据。
+安装 `flowreader.user.js` 后，打开 `https://linux.do/` 或 `https://linux.do/latest` 可点击右侧“浏览主帖”悬浮按钮浏览当前页面可见主帖；向下滚动加载更多主帖后再次点击，会从未浏览的主帖继续。主帖浏览进度最多保留最近 `20000` 个 topic id，悬停或键盘聚焦“浏览主帖”按钮即可看到“重置进度”并清空已浏览记录。打开 `https://linux.do/t/topic/...` 形式的话题详情页，可使用右侧 FlowReader 浮动按钮浏览跟帖。悬停或键盘聚焦右侧按钮即可看到“导出 Markdown”；脚本只导出 `post_number = 1` 的主帖，不包含跟帖，文件正文使用 Discourse API 返回的 `cooked` HTML 转为纯净 Markdown，并保留主帖图片链接、来源、标题、作者、分类、标签和时间等元数据。
 
 UserScript 验证命令：
 

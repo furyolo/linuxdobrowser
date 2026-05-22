@@ -4,7 +4,9 @@ const assert = require("node:assert/strict");
 const {
     buildMarkdownDocument,
     canExportMarkdown,
+    collectImageAssetsFromHtml,
     continueMainTopicBrowsingSession,
+    cookedToMarkdown,
     collectMainPostMarkdown,
     collectHomeTopicItems,
     cleanupScriptUI,
@@ -1064,26 +1066,120 @@ test("Markdown 导出应优先选择 post_number 为 1 的主帖", () => {
     });
 });
 
-test("Markdown 导出应保留 raw 正文内容", () => {
-    const raw = "# 标题\n\n- A\n- B\n";
+test("Markdown 导出应生成纯净主帖文档与帖子信息", () => {
+    const body = "## 标题\n\n正文\n";
     const markdown = buildMarkdownDocument({
-        raw,
+        body,
         url: "https://linux.do/t/topic/1",
         topicId: "1",
         postId: "10",
         title: "测试",
         author: "author",
-        createdAt: "2026-05-16T12:00:00Z"
+        category: "开发调优",
+        tags: ["AI", "linuxdo"],
+        floors: 3,
+        createdAt: "2026-05-16T12:00:00Z",
+        exportedAt: new Date("2026-05-17T12:00:00Z")
     });
 
     assert.ok(markdown.startsWith("---\n"));
-    assert.ok(markdown.endsWith(raw));
+    assert.match(markdown, /source: "https:\/\/linux\.do\/t\/topic\/1"/);
+    assert.match(markdown, /category: "开发调优"/);
+    assert.match(markdown, /tags:\n  - "AI"\n  - "linuxdo"/);
+    assert.match(markdown, /floors: 3/);
+    assert.match(markdown, /## 帖子信息/);
+    assert.match(markdown, /\*\*原始链接\*\*: \[https:\/\/linux\.do\/t\/topic\/1\]/);
+    assert.match(markdown, /\*\*楼层数\*\*: 3/);
+    assert.ok(markdown.endsWith(body));
+});
+
+test("cooked HTML 应转换为纯净 Markdown 并保留最佳图片链接", () => {
+    const cooked = [
+        "<h1>主标题</h1>",
+        "<p>正文 <strong>加粗</strong> <a href=\"/u/op\">作者</a></p>",
+        "<p><a href=\"/uploads/default/original/3X/full.png\"><img src=\"/uploads/default/optimized/3X/small.webp\" data-large-src=\"/uploads/default/original/3X/full.png\" alt=\"示例图\"></a></p>",
+        "<pre><code class=\"lang-js\">const a = 1;\n</code></pre>"
+    ].join("");
+
+    const markdown = cookedToMarkdown(cooked, {
+        baseUrl: "https://linux.do/t/topic/2005411/1",
+        doc: null
+    });
+
+    assert.match(markdown, /## 主标题/);
+    assert.match(markdown, /正文 \*\*加粗\*\* \[作者\]\(https:\/\/linux\.do\/u\/op\)/);
+    assert.match(markdown, /!\[示例图\]\(https:\/\/linux\.do\/uploads\/default\/original\/3X\/full\.png\)/);
+    assert.match(markdown, /```js\nconst a = 1;\n```/);
+});
+
+test("图片资产收集应跳过表情并优先保留原图地址", () => {
+    const assets = collectImageAssetsFromHtml([
+        "<img src=\"/images/emoji/twemoji/smile.png\" alt=\"😊\">",
+        "<img src=\"/uploads/default/optimized/3X/small.webp\" data-large-src=\"/uploads/default/original/3X/full.png\">"
+    ].join(""), "https://linux.do/t/topic/2005411/1", null);
+
+    assert.equal(assets.length, 1);
+    assert.equal(assets[0].preferredSrc, "https://linux.do/uploads/default/original/3X/full.png");
+    assert.deepEqual(assets[0].fallbackSrcs, ["https://linux.do/uploads/default/optimized/3X/small.webp"]);
+});
+
+test("topic 响应包含 cooked 时，FlowReader 应输出纯净 Markdown 和完整元数据", async () => {
+    const calls = [];
+    const fetchImpl = async url => {
+        calls.push(url);
+        return {
+            ok: true,
+            json: async () => ({
+                title: "导出测试",
+                tags: ["教程"],
+                posts_count: 2,
+                highest_post_number: 2,
+                details: {
+                    created_by: { username: "op-from-topic" }
+                },
+                post_stream: {
+                    posts: [{
+                        id: 99,
+                        post_number: 1,
+                        cooked: "<p>Hello <strong>World</strong></p><p><img src=\"/uploads/default/original/3X/a.png\" alt=\"图\"></p>",
+                        raw: "raw fallback",
+                        username: "op",
+                        created_at: "2026-05-16T12:00:00Z"
+                    }]
+                }
+            })
+        };
+    };
+
+    const result = await collectMainPostMarkdown({
+        fetchImpl,
+        context: { csrfToken: "csrf-123" },
+        doc: createFakeDocument({
+            ".badge-category__name": { textContent: "开发调优" }
+        }),
+        locationLike: {
+            hostname: "linux.do",
+            origin: "https://linux.do",
+            pathname: "/t/topic/2005411/1",
+            href: "https://linux.do/t/topic/2005411/1"
+        }
+    });
+
+    assert.deepEqual(calls, ["https://linux.do/t/2005411.json"]);
+    assert.equal(result.filename, "导出测试-2005411.md");
+    assert.match(result.markdown, /author: "op-from-topic"/);
+    assert.match(result.markdown, /category: "开发调优"/);
+    assert.match(result.markdown, /floors: 2/);
+    assert.match(result.markdown, /\*\*楼层数\*\*: 2/);
+    assert.match(result.markdown, /Hello \*\*World\*\*/);
+    assert.match(result.markdown, /!\[图\]\(https:\/\/linux\.do\/uploads\/default\/original\/3X\/a\.png\)/);
+    assert.doesNotMatch(result.markdown, /raw fallback/);
 });
 
 test("Markdown 导出文件名应移除 Windows 非法字符", () => {
     assert.equal(
-        sanitizeFileName('linuxdo-1-a/b:c*d?"e<f>g|'),
-        "linuxdo-1-a-b-c-d--e-f-g-"
+        sanitizeFileName('a/b:c*d?"e<f>g|'),
+        "a_b_c_d__e_f_g_"
     );
 });
 
@@ -1134,7 +1230,7 @@ test("topic 响应无 raw 时，FlowReader 会回退请求单帖 API", async () 
         "https://linux.do/t/2005411.json",
         "https://linux.do/posts/99.json"
     ]);
-    assert.equal(result.filename, "linuxdo-2005411-导出测试.md");
+    assert.equal(result.filename, "导出测试-2005411.md");
     assert.match(result.markdown, /原始 \*\*Markdown\*\*/);
     assert.equal(requestOptions[0].credentials, "include");
     assert.equal(requestOptions[0].headers["X-CSRF-Token"], "csrf-123");

@@ -1439,22 +1439,554 @@ function normalizeSourceUrl(locationLike) {
     return sourceUrl.toString();
 }
 
-function sanitizeFileName(value, fallback = "linuxdo-main-post") {
-    const normalized = String(value || fallback)
-        .replace(/[\\/:*?"<>|]/g, "-")
+function sanitizeFileName(value, fallback = "untitled") {
+    return String(value || fallback)
+        .replace(/[\\/:*?"<>|]/g, "_")
         .replace(/\s+/g, " ")
         .trim()
-        .replace(/[. ]+$/g, "");
+        .slice(0, 80) || fallback;
+}
 
-    return (normalized || fallback).slice(0, 120);
+function buildMarkdownFilename(topic) {
+    const safeTitle = sanitizeFileName(topic?.title || "untitled");
+    const topicId = String(topic?.topicId || "").trim();
+    return topicId ? `${safeTitle}-${topicId}.md` : `${safeTitle}.md`;
 }
 
 function yamlString(value) {
     return JSON.stringify(value == null ? "" : String(value));
 }
 
+function normalizeCaseKey(value) {
+    return String(value || "").trim().toLowerCase();
+}
+
+function absoluteUrl(src, baseUrl = typeof window !== "undefined" ? window.location.href : "https://linux.do/") {
+    const raw = String(src || "").trim();
+    if (!raw) {
+        return "";
+    }
+
+    try {
+        return new URL(raw, baseUrl).toString();
+    } catch {
+        return raw;
+    }
+}
+
+function getMarkdownHeadingPrefix(tagName) {
+    const level = Math.max(1, Math.min(Number.parseInt(String(tagName || "").replace(/^h/i, ""), 10) || 3, 6));
+    if (level <= 1) return "##";
+    if (level === 2) return "###";
+    return "####";
+}
+
+function decodeHtmlEntities(value) {
+    const text = String(value || "");
+    const doc = typeof document !== "undefined" ? document : null;
+    if (doc?.createElement) {
+        const textarea = doc.createElement("textarea");
+        textarea.innerHTML = text;
+        return textarea.value;
+    }
+
+    return text
+        .replace(/&nbsp;/g, " ")
+        .replace(/&amp;/g, "&")
+        .replace(/&lt;/g, "<")
+        .replace(/&gt;/g, ">")
+        .replace(/&quot;/g, '"')
+        .replace(/&#39;/g, "'");
+}
+
+function getHtmlAttribute(tag, name) {
+    const escapedName = String(name || "").replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+    const match = String(tag || "").match(new RegExp(`\\s${escapedName}\\s*=\\s*(?:"([^"]*)"|'([^']*)'|([^\\s>]+))`, "i"));
+    return match ? (match[1] ?? match[2] ?? match[3] ?? "") : "";
+}
+
+function isLikelyDiscourseUploadUrl(url, baseUrl) {
+    try {
+        const parsed = new URL(url, baseUrl || (typeof window !== "undefined" ? window.location.href : "https://linux.do/"));
+        return /\/(?:uploads|original|optimized)\//i.test(parsed.pathname);
+    } catch {
+        return false;
+    }
+}
+
+function isLikelyImageAssetUrl(url, baseUrl) {
+    if (!url) {
+        return false;
+    }
+
+    try {
+        const parsed = new URL(url, baseUrl || (typeof window !== "undefined" ? window.location.href : "https://linux.do/"));
+        if (/\.(png|jpe?g|gif|webp|bmp|svg|avif|heic|heif|tiff?)(\?.*)?$/i.test(parsed.pathname + parsed.search)) {
+            return true;
+        }
+        return isLikelyDiscourseUploadUrl(parsed.toString(), baseUrl);
+    } catch {
+        return false;
+    }
+}
+
+function parseSrcsetLargestUrl(srcset, baseUrl) {
+    const items = String(srcset || "")
+        .split(",")
+        .map(item => item.trim())
+        .filter(Boolean);
+    let bestUrl = "";
+    let bestScore = -1;
+
+    for (const item of items) {
+        const parts = item.split(/\s+/).filter(Boolean);
+        const candidateUrl = absoluteUrl(parts[0] || "", baseUrl);
+        if (!candidateUrl) continue;
+
+        const descriptor = parts[1] || "";
+        const match = descriptor.match(/^([0-9]+(?:\.[0-9]+)?)(w|x)$/i);
+        let score = 0;
+        if (match) {
+            const numeric = Number.parseFloat(match[1]);
+            score = match[2].toLowerCase() === "w" ? numeric * 1000 : numeric;
+        }
+
+        if (score >= bestScore) {
+            bestScore = score;
+            bestUrl = candidateUrl;
+        }
+    }
+
+    return bestUrl;
+}
+
+function toUniqueUrlList(values, baseUrl) {
+    const result = [];
+    const seen = new Set();
+    for (const value of values || []) {
+        const normalized = absoluteUrl(value, baseUrl);
+        if (!normalized) continue;
+        const key = normalizeCaseKey(normalized);
+        if (seen.has(key)) continue;
+        seen.add(key);
+        result.push(normalized);
+    }
+    return result;
+}
+
+function getDiscourseEmojiName(src) {
+    const match = String(src || "").match(/\/images\/emoji\/(?:twemoji|apple|google|twitter)\/([^/.]+)\.png/i);
+    return match ? match[1] : "";
+}
+
+function isDiscourseEmojiImage(src) {
+    return Boolean(getDiscourseEmojiName(src));
+}
+
+function resolveImageAssetFromElement(img, baseUrl) {
+    if (!img) {
+        return null;
+    }
+
+    const displaySrc = absoluteUrl(img.getAttribute?.("src") || img.getAttribute?.("data-src") || "", baseUrl);
+    const anchor = img.closest?.("a");
+    const anchorHref = absoluteUrl(anchor?.getAttribute?.("href") || "", baseUrl);
+    const downloadHref = absoluteUrl(anchor?.getAttribute?.("data-download-href") || img.getAttribute?.("data-download-href") || "", baseUrl);
+    const largeSrc = absoluteUrl(img.getAttribute?.("data-large-src") || anchor?.getAttribute?.("data-large-src") || "", baseUrl);
+    const srcsetLargest = parseSrcsetLargestUrl(img.getAttribute?.("srcset") || "", baseUrl);
+
+    const orderedCandidates = [];
+    if (anchorHref && isLikelyImageAssetUrl(anchorHref, baseUrl)) orderedCandidates.push(anchorHref);
+    if (downloadHref && isLikelyImageAssetUrl(downloadHref, baseUrl)) orderedCandidates.push(downloadHref);
+    if (largeSrc && isLikelyImageAssetUrl(largeSrc, baseUrl)) orderedCandidates.push(largeSrc);
+    if (srcsetLargest) orderedCandidates.push(srcsetLargest);
+    if (displaySrc) orderedCandidates.push(displaySrc);
+
+    const uniqueCandidates = toUniqueUrlList(orderedCandidates, baseUrl);
+    const preferredSrc = uniqueCandidates[0] || displaySrc;
+    if (!preferredSrc) {
+        return null;
+    }
+
+    return {
+        displaySrc,
+        preferredSrc,
+        fallbackSrcs: uniqueCandidates.filter(url => normalizeCaseKey(url) !== normalizeCaseKey(preferredSrc))
+    };
+}
+
+function resolveImageAssetFromImgTag(tag, baseUrl) {
+    const displaySrc = absoluteUrl(getHtmlAttribute(tag, "src") || getHtmlAttribute(tag, "data-src") || "", baseUrl);
+    const downloadHref = absoluteUrl(getHtmlAttribute(tag, "data-download-href") || "", baseUrl);
+    const largeSrc = absoluteUrl(getHtmlAttribute(tag, "data-large-src") || "", baseUrl);
+    const srcsetLargest = parseSrcsetLargestUrl(getHtmlAttribute(tag, "srcset"), baseUrl);
+    const orderedCandidates = [];
+    if (downloadHref && isLikelyImageAssetUrl(downloadHref, baseUrl)) orderedCandidates.push(downloadHref);
+    if (largeSrc && isLikelyImageAssetUrl(largeSrc, baseUrl)) orderedCandidates.push(largeSrc);
+    if (srcsetLargest) orderedCandidates.push(srcsetLargest);
+    if (displaySrc) orderedCandidates.push(displaySrc);
+
+    const uniqueCandidates = toUniqueUrlList(orderedCandidates, baseUrl);
+    const preferredSrc = uniqueCandidates[0] || displaySrc;
+    if (!preferredSrc) {
+        return null;
+    }
+
+    return {
+        displaySrc,
+        preferredSrc,
+        fallbackSrcs: uniqueCandidates.filter(url => normalizeCaseKey(url) !== normalizeCaseKey(preferredSrc))
+    };
+}
+
+function getImageAssetAliases(asset, baseUrl) {
+    return toUniqueUrlList([asset?.displaySrc, asset?.preferredSrc, ...(asset?.fallbackSrcs || [])], baseUrl);
+}
+
+function registerImageMapEntry(imgMap, asset, entry, baseUrl) {
+    for (const alias of getImageAssetAliases(asset, baseUrl)) {
+        imgMap[alias] = entry;
+    }
+}
+
+function resolveImageMapEntry(img, imgMap, baseUrl) {
+    const asset = resolveImageAssetFromElement(img, baseUrl);
+    if (!asset) {
+        return { asset: null, entry: null };
+    }
+
+    for (const alias of getImageAssetAliases(asset, baseUrl)) {
+        if (imgMap && imgMap[alias]) {
+            return { asset, entry: imgMap[alias] };
+        }
+    }
+
+    return { asset, entry: null };
+}
+
+function collectImageAssetsFromHtml(cookedHtml, baseUrl, doc = typeof document !== "undefined" ? document : null) {
+    const assets = [];
+    const byPreferred = new Map();
+    const recordAsset = asset => {
+        if (!asset?.preferredSrc) return;
+        const key = normalizeCaseKey(asset.preferredSrc);
+        if (byPreferred.has(key)) return;
+        byPreferred.set(key, asset);
+        assets.push(asset);
+    };
+
+    if (doc?.createElement) {
+        const container = doc.createElement("div");
+        container.innerHTML = cookedHtml || "";
+        container.querySelectorAll("img").forEach(img => {
+            const src = img.getAttribute("src") || img.getAttribute("data-src") || "";
+            if (isDiscourseEmojiImage(src)) return;
+            recordAsset(resolveImageAssetFromElement(img, baseUrl));
+        });
+        return assets;
+    }
+
+    for (const match of String(cookedHtml || "").matchAll(/<img\b[^>]*>/gi)) {
+        const tag = match[0];
+        const src = getHtmlAttribute(tag, "src") || getHtmlAttribute(tag, "data-src") || "";
+        if (isDiscourseEmojiImage(src)) continue;
+        recordAsset(resolveImageAssetFromImgTag(tag, baseUrl));
+    }
+
+    return assets;
+}
+
+function buildRemoteImageMap(cookedHtml, baseUrl, doc) {
+    const imgMap = {};
+    for (const asset of collectImageAssetsFromHtml(cookedHtml, baseUrl, doc)) {
+        registerImageMapEntry(imgMap, asset, {
+            preferredSrc: asset.preferredSrc,
+            renderedValue: asset.preferredSrc
+        }, baseUrl);
+    }
+    return imgMap;
+}
+
+function escapeTableCell(text) {
+    return String(text || "")
+        .replace(/\r\n/g, "\n")
+        .replace(/\n+/g, "<br>")
+        .replace(/\|/g, "\\|")
+        .replace(/\s+/g, " ")
+        .trim();
+}
+
+function tableToMarkdown(tableEl, serialize) {
+    const tableRowCells = rowEl => Array.from(rowEl.children).filter(cell => {
+        const tag = cell.tagName ? cell.tagName.toLowerCase() : "";
+        return tag === "td" || tag === "th";
+    });
+    const rows = Array.from(tableEl.querySelectorAll("tr"));
+    if (!rows.length) {
+        return "";
+    }
+
+    const allRows = rows.map(row => tableRowCells(row).map(cell => {
+        const raw = Array.from(cell.childNodes).map(child => serialize(child, false)).join("");
+        return escapeTableCell(raw);
+    }));
+    const headerCells = allRows[0] || [];
+    const dataRows = allRows.slice(1);
+    const colCount = Math.max(0, ...allRows.map(row => row.length));
+    if (!colCount) {
+        return "";
+    }
+
+    const padRow = cells => {
+        const out = cells.slice(0, colCount);
+        while (out.length < colCount) out.push("");
+        return out;
+    };
+
+    const headerLine = `| ${padRow(headerCells).join(" | ")} |`;
+    const sepLine = `| ${Array.from({ length: colCount }, () => "---").join(" | ")} |`;
+    const bodyLines = dataRows.map(row => `| ${padRow(row).join(" | ")} |`).join("\n");
+    return [headerLine, sepLine, bodyLines].filter(Boolean).join("\n");
+}
+
+function cookedToMarkdownFallback(cookedHtml, options = {}) {
+    const baseUrl = options.baseUrl || (typeof window !== "undefined" ? window.location.href : "https://linux.do/");
+    let text = String(cookedHtml || "")
+        .replace(/<a\b[^>]*href\s*=\s*(?:"([^"]*)"|'([^']*)'|([^\s>]+))[^>]*>\s*(<img\b[^>]*>)\s*<\/a>/gi, (_, h1, h2, h3, imgTag) => {
+            const asset = resolveImageAssetFromImgTag(imgTag, baseUrl);
+            const alt = getHtmlAttribute(imgTag, "alt") || "图片";
+            const fallbackHref = absoluteUrl(h1 || h2 || h3 || "", baseUrl);
+            const imageSrc = asset?.preferredSrc || fallbackHref;
+            return imageSrc ? `\n![${alt}](${imageSrc})\n` : "";
+        })
+        .replace(/<pre\b[^>]*>\s*<code\b([^>]*)>([\s\S]*?)<\/code>\s*<\/pre>/gi, (_, attrs, code) => {
+            const lang = (getHtmlAttribute(attrs, "class").match(/lang(?:uage)?-([a-z0-9_+-]+)/i) || [])[1] || "";
+            return `\n\`\`\`${lang}\n${decodeHtmlEntities(code).replace(/\n+$/g, "")}\n\`\`\`\n\n`;
+        })
+        .replace(/<img\b[^>]*>/gi, tag => {
+            const src = getHtmlAttribute(tag, "src") || getHtmlAttribute(tag, "data-src") || "";
+            const emojiName = getDiscourseEmojiName(src);
+            if (emojiName) {
+                return getHtmlAttribute(tag, "alt") || getHtmlAttribute(tag, "title") || `:${emojiName}:`;
+            }
+            const asset = resolveImageAssetFromImgTag(tag, baseUrl);
+            const alt = getHtmlAttribute(tag, "alt") || "图片";
+            return asset?.preferredSrc ? `\n![${alt}](${asset.preferredSrc})\n` : "";
+        })
+        .replace(/<br\s*\/?>/gi, "\n")
+        .replace(/<\/p\s*>/gi, "\n\n")
+        .replace(/<p\b[^>]*>/gi, "")
+        .replace(/<h1\b[^>]*>([\s\S]*?)<\/h1>/gi, "\n## $1\n\n")
+        .replace(/<h2\b[^>]*>([\s\S]*?)<\/h2>/gi, "\n### $1\n\n")
+        .replace(/<h[3-6]\b[^>]*>([\s\S]*?)<\/h[3-6]>/gi, "\n#### $1\n\n")
+        .replace(/<strong\b[^>]*>([\s\S]*?)<\/strong>|<b\b[^>]*>([\s\S]*?)<\/b>/gi, (_, strong, bold) => `**${strong || bold || ""}**`)
+        .replace(/<em\b[^>]*>([\s\S]*?)<\/em>|<i\b[^>]*>([\s\S]*?)<\/i>/gi, (_, em, italic) => `*${em || italic || ""}*`)
+        .replace(/<code\b[^>]*>([\s\S]*?)<\/code>/gi, (_, code) => `\`${decodeHtmlEntities(code).replace(/\n/g, " ")}\``)
+        .replace(/<a\b[^>]*href\s*=\s*(?:"([^"]*)"|'([^']*)'|([^\s>]+))[^>]*>([\s\S]*?)<\/a>/gi, (_, h1, h2, h3, label) => {
+            const href = absoluteUrl(h1 || h2 || h3 || "", baseUrl);
+            const cleanLabel = decodeHtmlEntities(String(label || "").replace(/<[^>]+>/g, "").trim());
+            if (!href) return cleanLabel;
+            if (!cleanLabel) return href;
+            return `[${cleanLabel}](${href})`;
+        })
+        .replace(/<li\b[^>]*>/gi, "- ")
+        .replace(/<\/li\s*>/gi, "\n")
+        .replace(/<[^>]+>/g, "");
+
+    text = decodeHtmlEntities(text);
+    return normalizeMarkdownText(text);
+}
+
+function normalizeMarkdownText(text) {
+    return String(text || "")
+        .replace(/\r\n/g, "\n")
+        .replace(/[ \t]+\n/g, "\n")
+        .replace(/\n{3,}/g, "\n\n")
+        .replace(/^[ \t]+\[/gm, "[")
+        .trim();
+}
+
+function cookedToMarkdown(cookedHtml, options = {}) {
+    const baseUrl = options.baseUrl || (typeof window !== "undefined" ? window.location.href : "https://linux.do/");
+    const doc = options.doc || (typeof document !== "undefined" ? document : null);
+    if (!doc?.createElement) {
+        return cookedToMarkdownFallback(cookedHtml, options);
+    }
+
+    const container = doc.createElement("div");
+    container.innerHTML = cookedHtml || "";
+    const imgMap = options.imgMap || buildRemoteImageMap(cookedHtml, baseUrl, doc);
+
+    function serialize(node, inPre = false) {
+        if (!node) return "";
+        if (node.nodeType === 3) return node.nodeValue || "";
+        if (node.nodeType !== 1) return "";
+
+        const el = node;
+        const tag = el.tagName.toLowerCase();
+        if (el.classList?.contains("meta")) return "";
+
+        if (tag === "aside" && el.classList.contains("quote")) {
+            const titleLink = el.querySelector(".quote-title__text-content a") || el.querySelector(".title > a");
+            const title = titleLink?.textContent?.trim() || "引用";
+            const href = titleLink?.getAttribute("href") || "";
+            const blockquote = el.querySelector("blockquote");
+            const content = blockquote ? Array.from(blockquote.childNodes).map(child => serialize(child, inPre)).join("").trim() : "";
+            const header = href ? `[${title}](${absoluteUrl(href, baseUrl)})` : title;
+            const lines = content.split("\n").filter(line => line.trim());
+            const quoteLines = [`> 引用：${header}`, ...lines.map(line => `> ${line}`)];
+            return `\n${quoteLines.join("\n")}\n\n`;
+        }
+
+        if (tag === "br") return "\n";
+
+        if (tag === "img") {
+            const src = el.getAttribute("src") || el.getAttribute("data-src") || "";
+            const emojiName = getDiscourseEmojiName(src);
+            if (emojiName) {
+                const emojiAlt = el.getAttribute("alt") || el.getAttribute("title") || "";
+                return emojiAlt && emojiAlt.length <= 4 ? emojiAlt : `:${emojiName}:`;
+            }
+
+            const { asset, entry } = resolveImageMapEntry(el, imgMap, baseUrl);
+            const imageSrc = entry?.renderedValue || entry?.preferredSrc || asset?.preferredSrc || absoluteUrl(src, baseUrl);
+            if (!imageSrc) return "";
+            const alt = el.getAttribute("alt") || "图片";
+            return `\n![${alt}](${imageSrc})\n`;
+        }
+
+        if (tag === "a") {
+            const href = el.getAttribute("href") || "";
+            if ((el.getAttribute("class") || "").includes("anchor") || href.startsWith("#")) {
+                return Array.from(el.childNodes).map(child => serialize(child, inPre)).join("").trim();
+            }
+            if (el.querySelector("img")) {
+                return Array.from(el.childNodes).map(child => serialize(child, inPre)).join("");
+            }
+            const text = Array.from(el.childNodes).map(child => serialize(child, inPre)).join("").trim();
+            const link = absoluteUrl(href, baseUrl);
+            if (!link) return text;
+            if (!text) return link;
+            if (text === link) return `<${text}>`;
+            return `[${text}](${link})`;
+        }
+
+        if (tag === "pre") {
+            const codeEl = el.querySelector("code");
+            const langClass = codeEl?.getAttribute("class") || "";
+            const lang = (langClass.match(/lang(?:uage)?-([a-z0-9_+-]+)/i) || [])[1] || "";
+            const code = (codeEl ? codeEl.textContent : el.textContent) || "";
+            return `\n\`\`\`${lang}\n${code.replace(/\n+$/g, "")}\n\`\`\`\n\n`;
+        }
+
+        if (tag === "code") {
+            if (inPre) return el.textContent || "";
+            const text = (el.textContent || "").replace(/\n/g, " ");
+            return text ? `\`${text}\`` : "";
+        }
+
+        if (tag === "blockquote") {
+            const inner = Array.from(el.childNodes).map(child => serialize(child, inPre)).join("");
+            const lines = inner.trim().split("\n");
+            return `\n${lines.map(line => `> ${line}`).join("\n")}\n\n`;
+        }
+
+        if (/^h[1-6]$/.test(tag)) {
+            const inner = Array.from(el.childNodes).map(child => serialize(child, inPre)).join("").trim();
+            return inner ? `\n${getMarkdownHeadingPrefix(tag)} ${inner}\n\n` : "";
+        }
+
+        if (tag === "li") {
+            const inner = Array.from(el.childNodes).map(child => serialize(child, inPre)).join("").trim();
+            return inner ? `- ${inner}\n` : "";
+        }
+
+        if (tag === "ul" || tag === "ol") {
+            const inner = Array.from(el.childNodes).map(child => serialize(child, inPre)).join("");
+            return `\n${inner}\n`;
+        }
+
+        if (tag === "p") {
+            const inner = Array.from(el.childNodes).map(child => serialize(child, inPre)).join("").trim();
+            return inner ? `${inner}\n\n` : "\n";
+        }
+
+        if (tag === "strong" || tag === "b") {
+            const inner = Array.from(el.childNodes).map(child => serialize(child, inPre)).join("");
+            return `**${inner}**`;
+        }
+
+        if (tag === "em" || tag === "i") {
+            const inner = Array.from(el.childNodes).map(child => serialize(child, inPre)).join("");
+            return `*${inner}*`;
+        }
+
+        if (tag === "s" || tag === "del" || tag === "strike") {
+            const inner = Array.from(el.childNodes).map(child => serialize(child, inPre)).join("");
+            return `~~${inner}~~`;
+        }
+
+        if (tag === "table") {
+            const tableMd = tableToMarkdown(el, serialize);
+            return tableMd ? `\n${tableMd}\n\n` : "";
+        }
+
+        const nextInPre = inPre || tag === "pre";
+        return Array.from(el.childNodes).map(child => serialize(child, nextInPre)).join("");
+    }
+
+    return normalizeMarkdownText(Array.from(container.childNodes).map(node => serialize(node, false)).join(""));
+}
+
+function normalizeMarkdownTags(tags) {
+    const result = [];
+    const seen = new Set();
+    for (const tag of [...(Array.isArray(tags) ? tags : []), "linuxdo"]) {
+        const normalized = String(typeof tag === "object" && tag ? tag.name || tag.slug || "" : tag || "").trim();
+        if (!normalized) continue;
+        const key = normalizeCaseKey(normalized);
+        if (seen.has(key)) continue;
+        seen.add(key);
+        result.push(normalized);
+    }
+    return result;
+}
+
+function normalizeInteger(value, fallback) {
+    const number = Number(value);
+    return Number.isFinite(number) ? Math.trunc(number) : fallback;
+}
+
+function normalizePositiveInteger(value, fallback = 1) {
+    return Math.max(1, normalizeInteger(value, fallback));
+}
+
+function buildTopicInfoSection(details, exportedAt) {
+    const tags = normalizeMarkdownTags(details.tags);
+    const floors = normalizePositiveInteger(details.floors, 1);
+    const lines = [
+        `**原始链接**: [${details.url || ""}](${details.url || ""})`,
+        `**主题 ID**: ${details.topicId || ""}`,
+        `**楼主**: @${details.author || "未知"}`,
+        `**分类**: ${details.category || "无"}`,
+        `**标签**: ${tags.join(", ")}`,
+        `**导出时间**: ${exportedAt.toLocaleString("zh-CN")}`,
+        `**楼层数**: ${floors}`
+    ];
+
+    return `## 帖子信息\n\n${lines.map(line => `- ${line}`).join("\n")}\n\n`;
+}
+
 function buildMarkdownDocument(details) {
-    const raw = typeof details.raw === "string" ? details.raw : "";
+    const body = typeof details.body === "string"
+        ? details.body
+        : typeof details.raw === "string"
+            ? details.raw
+            : "";
+    const exportedAt = details.exportedAt instanceof Date ? details.exportedAt : new Date(details.exportedAt || Date.now());
+    const tags = normalizeMarkdownTags(details.tags);
+    const tagLines = tags.length ? tags.map(tag => `  - ${yamlString(tag)}`) : ["  - \"linuxdo\""];
+    const floors = normalizePositiveInteger(details.floors, 1);
     const metadata = [
         "---",
         `source: ${yamlString(details.url)}`,
@@ -1462,13 +1994,20 @@ function buildMarkdownDocument(details) {
         `post_id: ${yamlString(details.postId)}`,
         `title: ${yamlString(details.title)}`,
         `author: ${yamlString(details.author)}`,
+        `category: ${yamlString(details.category)}`,
+        "tags:",
+        ...tagLines,
         `created_at: ${yamlString(details.createdAt)}`,
+        `export_time: ${yamlString(exportedAt.toISOString())}`,
+        `floors: ${floors}`,
         "exported_from: \"flowreader\"",
         "---",
         ""
     ].join("\n");
+    const title = String(details.title || "无标题").trim() || "无标题";
+    const content = `# ${title}\n\n${buildTopicInfoSection({ ...details, floors }, exportedAt)}${body}${body.endsWith("\n") ? "" : "\n"}`;
 
-    return `${metadata}${raw}${raw.endsWith("\n") ? "" : "\n"}`;
+    return `${metadata}${content}`;
 }
 
 function pickMainPost(topicData) {
@@ -1535,23 +2074,33 @@ async function collectMainPostMarkdown(options = {}) {
     }
 
     let postData = mainPostInfo.post;
-    if (!postData || typeof postData.raw !== "string") {
+    if (!postData || (typeof postData.cooked !== "string" && typeof postData.raw !== "string")) {
         postData = await fetchJson(buildPostApiUrl(locationLike.origin, mainPostInfo.id), fetchImpl, context);
     }
 
-    if (typeof postData?.raw !== "string") {
-        throw new Error("主帖 API 响应中缺少 raw Markdown 内容");
+    if (typeof postData?.cooked !== "string" && typeof postData?.raw !== "string") {
+        throw new Error("主帖 API 响应中缺少 cooked HTML 或 raw Markdown 内容");
     }
 
+    const doc = options.doc || (typeof document !== "undefined" ? document : null);
+    const sourceUrl = normalizeSourceUrl(locationLike);
     const title = topicData.title || postData.topic_slug || `linuxdo-${currentTopicID}`;
-    const filename = `${sanitizeFileName(`linuxdo-${currentTopicID}-${title}`)}.md`;
+    const body = typeof postData.cooked === "string"
+        ? cookedToMarkdown(postData.cooked, { baseUrl: sourceUrl, doc })
+        : postData.raw;
+    const filename = buildMarkdownFilename({ title, topicId: currentTopicID });
+    const topicFloors = normalizePositiveInteger(topicData.posts_count || topicData.highest_post_number, 1);
     const markdown = buildMarkdownDocument({
+        body,
         raw: postData.raw,
-        url: normalizeSourceUrl(locationLike),
+        url: sourceUrl,
         topicId: currentTopicID,
         postId: postData.id || mainPostInfo.id,
         title,
-        author: postData.username,
+        author: topicData?.details?.created_by?.username || postData.username,
+        category: topicData.category || doc?.querySelector?.(".badge-category__name")?.textContent?.trim() || "",
+        tags: topicData.tags,
+        floors: topicFloors,
         createdAt: postData.created_at
     });
 
@@ -1987,7 +2536,9 @@ async function startReading() {
 if (typeof module !== "undefined" && module.exports) {
     module.exports = {
         buildMarkdownDocument,
+        cookedToMarkdown,
         canExportMarkdown,
+        collectImageAssetsFromHtml,
         continueMainTopicBrowsingSession,
         collectMainPostMarkdown,
         collectHomeTopicItems,
